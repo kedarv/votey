@@ -1,0 +1,5 @@
+# VS Code config folder
+.vscode/
+
+# egg info
+votey.egg-info/
