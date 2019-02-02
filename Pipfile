@@ -9,6 +9,8 @@ verify_ssl = true
 flask = "*"
 emoji = "*"
 gunicorn = "*"
+python-dotenv = "*"
+psycopg2 = "*"
 
 [requires]
 python_version = "3.7"

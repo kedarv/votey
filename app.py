@@ -3,6 +3,23 @@ from flask import request
 from flask import jsonify
 import shlex
 import emoji
+import psycopg2
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+conn = psycopg2.connect(os.getenv('DATABASE_URL'))
+cursor = conn.cursor()
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS poll_data
+  (
+    id SERIAL PRIMARY KEY,
+    identifier UUID,
+    data TEXT
+  )
+""")
+conn.commit()
 
 app = Flask(__name__)
 
@@ -60,3 +77,6 @@ def handle_poll_creation(request):
   }
 
   return jsonify(response)
+
+def handle_button_interaction(request):
+  pass
