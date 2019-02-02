@@ -1,10 +1,10 @@
-from flask import Flask
+from flask import Blueprint
 from flask import request
 from flask import jsonify
 import shlex
 import emoji
 
-app = Flask(__name__)
+bp = Blueprint('slack', __name__)
 
 NUM_TO_SLACKMOJI = {
   1: ':one:',
@@ -16,7 +16,7 @@ NUM_TO_SLACKMOJI = {
   7: ':seven:',
 }
 
-@app.route("/slack", methods=['POST'])
+@bp.route("/slack", methods=['POST'])
 def slack():
   if request.form.get('payload'):
     return handle_button_interaction(request.form)
@@ -60,3 +60,6 @@ def handle_poll_creation(request):
   }
 
   return jsonify(response)
+
+def handle_button_interaction(*args, **kwargs):
+  pass

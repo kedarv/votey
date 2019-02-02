@@ -1,7 +1,6 @@
 # VS Code config folder
 .vscode/
 
-
 # python stuff
 *.egg-info/
 __pycache__

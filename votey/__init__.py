@@ -32,4 +32,8 @@ def create_app(config=None):
     hostname = app.config.get('SERVER_NAME') or gethostname()
     return f'OK - {hostname}'
 
+  # slack interaction
+  from . import slack
+  app.register_blueprint(slack.bp)
+
   return app
