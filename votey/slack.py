@@ -12,11 +12,28 @@ load_dotenv()
 conn = psycopg2.connect(os.getenv('DATABASE_URL'))
 cursor = conn.cursor()
 cursor.execute("""
-CREATE TABLE IF NOT EXISTS poll_data
+CREATE TABLE IF NOT EXISTS polls
   (
     id SERIAL PRIMARY KEY,
     identifier UUID,
-    data TEXT
+    question TEXT
+  )
+""")
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS options
+  (
+    id SERIAL PRIMARY KEY,
+    poll_id INTEGER,
+    option_text TEXT
+  )
+""")
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS votes
+  (
+    id SERIAL PRIMARY KEY,
+    poll_id INTEGER,
+    option_id INTEGER,
+    username TEXT
   )
 """)
 conn.commit()
