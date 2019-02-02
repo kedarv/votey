@@ -8,5 +8,7 @@ verify_ssl = true
 [packages]
 flask = "*"
 emoji = "*"
+gunicorn = "*"
+
 [requires]
 python_version = "3.7"
