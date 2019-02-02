@@ -26,27 +26,34 @@ def handle_poll_creation(request):
   command = shlex.split(request.get('text'))
   poll_question = command.pop(0)
   actions = []
-  action_texts = []
+  fields = []
 
   for counter, option in enumerate(command):
-    action_texts.append(NUM_TO_SLACKMOJI[(counter+1)] + ' ' + option)
     actions.append({
-      'name': option,
+      'name': 'vote',
       'text': NUM_TO_SLACKMOJI[(counter+1)],
-      'value': option,
+      'value': counter+1,
       'type': 'button'
+    })
+    fields.append({
+      'title': '',
+      'value': NUM_TO_SLACKMOJI[(counter+1)] + ' ' + option + '\n\n\n',
+      'short': False,
     })
 
   response = {
+    "response_type": "in_channel",
     "attachments": [
       {
-        'text': '*' + poll_question + '*\n' + '\n'.join(action_texts),
-        'mrkdwn_in': ['text'],
+        'title': poll_question,
+        'mrkdwn_in': ['fields'],
+        'color': '#6ecadc',
+        'fields': fields,
       },
       {
         'callback_id': 'something',
         'attachment_type': 'default',
-        'color': '#3AA0E3',
+        'color': '#6ecadc',
         'actions': actions
       }
     ],
