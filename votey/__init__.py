@@ -2,15 +2,14 @@ import os
 from socket import gethostname
 
 from flask import Flask
+from flask_sqlalchemy import SQLAlchemy
 
+db = SQLAlchemy()
 
 def create_app(config=None):
   # create and configure the app
   app = Flask(__name__, instance_relative_config=True)
-  app.config.from_mapping(
-    SECRET_KEY='dev',
-    DATABASE=os.path.join(app.instance_path, 'votey.sqlite'),
-  )
+  app.config.from_mapping(SECRET_KEY='dev')
   app.config.from_object('votey.config.Default')
 
   if config is None:
@@ -25,6 +24,8 @@ def create_app(config=None):
     os.makedirs(app.instance_path)
   except OSError:
     pass
+
+  db.init_app(app)
 
   # paasta healthcheck
   @app.route('/status')

@@ -3,40 +3,10 @@ from flask import request
 from flask import jsonify
 import shlex
 import emoji
-import psycopg2
-from dotenv import load_dotenv
 import os
 
-load_dotenv()
+from .models import Poll, Option, Vote
 
-conn = psycopg2.connect(os.getenv('DATABASE_URL'))
-cursor = conn.cursor()
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS polls
-  (
-    id SERIAL PRIMARY KEY,
-    identifier UUID,
-    question TEXT
-  )
-""")
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS options
-  (
-    id SERIAL PRIMARY KEY,
-    poll_id INTEGER,
-    option_text TEXT
-  )
-""")
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS votes
-  (
-    id SERIAL PRIMARY KEY,
-    poll_id INTEGER,
-    option_id INTEGER,
-    username TEXT
-  )
-""")
-conn.commit()
 
 bp = Blueprint('slack', __name__)
 
@@ -56,8 +26,8 @@ def slack():
     return handle_button_interaction(request.form)
   return handle_poll_creation(request.form)
 
-def handle_poll_creation(request):
-  command = shlex.split(request.get('text'))
+def handle_poll_creation(req):
+  command = shlex.split(req.get('text'))
   poll_question = command.pop(0)
   actions = []
   fields = []
@@ -95,5 +65,5 @@ def handle_poll_creation(request):
 
   return jsonify(response)
 
-def handle_button_interaction(request):
+def handle_button_interaction(req):
   pass
