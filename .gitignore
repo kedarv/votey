@@ -1,11 +1,20 @@
 # VS Code config folder
 .vscode/
 
-# egg info
-votey.egg-info/
+
+# python stuff
+*.egg-info/
+__pycache__
+
+# typing
+.mypy_cache/
+
+# virtualenvs
+venv/
+
+# flask instance config
+instance/
 
 cache.*
 *.csv
 .env
-.DS_STORE
-__pycache__/*
