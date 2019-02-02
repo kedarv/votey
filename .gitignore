@@ -3,3 +3,9 @@
 
 # egg info
 votey.egg-info/
+
+cache.*
+*.csv
+.env
+.DS_STORE
+__pycache__/*
