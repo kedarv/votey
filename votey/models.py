@@ -6,6 +6,17 @@ from . import db
 
 base: Any = db.Model
 
+class Workspace(base):
+  id = db.Column(db.Integer, primary_key=True)
+  team_id = db.Column(db.Text, nullable=False)
+  name = db.Column(db.Text, nullable=False)
+  token = db.Column(db.Text, nullable=False)
+
+  def __init__(self, team_id, name, token):
+    self.team_id = team_id
+    self.name = name
+    self.token = token
+
 class Poll(base):
   id = db.Column(db.Integer, primary_key=True)
   identifier = db.Column(UUID(as_uuid=True), unique=True, nullable=False)

@@ -9,7 +9,7 @@ import uuid
 import json
 import requests
 
-from .models import Poll, Option, Vote
+from .models import Poll, Option, Vote, Workspace
 from votey import db
 
 
@@ -31,7 +31,32 @@ def slack():
     return handle_button_interaction(request.form)
   return handle_poll_creation(request.form)
 
+@bp.route("/oauth", methods=['GET'])
+def oauth():
+  code = request.args.get('code')
+  client_id = current_app.config['CLIENT_ID']
+  client_secret = current_app.config['CLIENT_SECRET']
+  oauth = requests.get('https://slack.com/api/oauth.access', params={
+    'code': code,
+    'client_id': client_id,
+    'client_secret': client_secret,
+  })
+  if oauth.json().get('ok') == True:
+    team_id = oauth.json().get('team_id')
+    token = oauth.json().get('access_token')
+    name = oauth.json().get('team_name')
+    workspace = Workspace.query.filter_by(team_id=team_id).first()
+    if workspace is not None:
+      workspace.token = token
+    else:
+      workspace = Workspace(team_id, name, token)
+      db.session.add(workspace)
+    db.session.commit()
+    return "thanks! votey has been installed to <b>{}</b>. you can close this tab.".format(name)
+  return "something went wrong :("
+
 def handle_poll_creation(req):
+  workspace = Workspace.query.filter_by(team_id=req.get('team_id')).first()
   command = shlex.split(req.get('text'))
   poll_question = command.pop(0)
   actions = []
@@ -77,7 +102,7 @@ def handle_poll_creation(req):
   post_message = requests.post('https://slack.com/api/chat.postMessage', json = {
     'channel': req.get('channel_id'),
     'attachments': attachments,
-  }, headers={'Authorization': 'Bearer {}'.format(current_app.config['SLACK_API_TOKEN'])})
+  }, headers={'Authorization': 'Bearer {}'.format(workspace.token)})
 
   return ''
 
@@ -88,6 +113,7 @@ def handle_button_interaction(req):
   user = response.get('user').get('id')
   channel = response.get('channel').get('id')
   original_message = response.get('original_message')
+  workspace = Workspace.query.filter_by(team_id=response.get('team').get('id')).first()
 
   if poll is not None and option is not None:
     vote = Vote.query.filter_by(
@@ -119,7 +145,7 @@ def handle_button_interaction(req):
       'ts': response.get('message_ts'),
       'text': '',
       'attachments': original_message.get('attachments'),
-    },  headers={'Authorization': 'Bearer {}'.format(current_app.config['SLACK_API_TOKEN'])})
+    },  headers={'Authorization': 'Bearer {}'.format(workspace.token)})
   return ''
 
 
