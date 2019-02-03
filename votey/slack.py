@@ -8,6 +8,9 @@ import os
 import uuid
 import json
 import requests
+import time
+import hmac
+import hashlib
 
 from .models import Poll, Option, Vote, Workspace
 from votey import db
@@ -27,9 +30,10 @@ NUM_TO_SLACKMOJI = {
 
 @bp.route("/slack", methods=['POST'])
 def slack():
-  if request.form.get('payload'):
-    return handle_button_interaction(request.form)
-  return handle_poll_creation(request.form)
+  if valid_request(request):
+    if request.form.get('payload'):
+      return handle_button_interaction(request.form)
+    return handle_poll_creation(request.form)
 
 @bp.route("/oauth", methods=['GET'])
 def oauth():
@@ -148,5 +152,17 @@ def handle_button_interaction(req):
     },  headers={'Authorization': 'Bearer {}'.format(workspace.token)})
   return ''
 
-
+def valid_request(request):
+  timestamp = request.headers['X-Slack-Request-Timestamp']
+  slack_signature = request.headers['X-Slack-Signature']
+  # Avoid replay attacks
+  if abs(time.time() - int(timestamp)) > (60*5):
+    return False
+  sig_basestring = str.encode('v0:' + str(timestamp) + ':') + request.get_data()
+  request_hash = 'v0=' + hmac.new(
+      bytes(current_app.config['SIGNING_SECRET'], encoding='utf-8'),
+      sig_basestring,
+      hashlib.sha256
+  ).hexdigest()
+  return hmac.compare_digest(request_hash, slack_signature)
 

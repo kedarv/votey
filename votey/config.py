@@ -5,3 +5,4 @@ class Default:
   SQLALCHEMY_DATABASE_URI = os.environ.get('SQLALCHEMY_DATABASE_URI')
   CLIENT_ID = os.environ.get('CLIENT_ID')
   CLIENT_SECRET = os.environ.get('CLIENT_SECRET')
+  SIGNING_SECRET = os.environ.get('SIGNING_SECRET')
