@@ -1,6 +1,7 @@
 from flask import Blueprint
 from flask import request
 from flask import jsonify
+from flask import current_app
 import shlex
 import emoji
 import os
@@ -76,8 +77,8 @@ def handle_poll_creation(req):
   post_message = requests.post('https://slack.com/api/chat.postMessage', json = {
     'channel': req.get('channel_id'),
     'attachments': attachments,
-  }, headers={'Authorization': 'Bearer '})
-  print(post_message.text)
+  }, headers={'Authorization': 'Bearer {}'.format(current_app.config['SLACK_API_TOKEN'])})
+
   return ''
 
 def handle_button_interaction(req):
@@ -118,8 +119,7 @@ def handle_button_interaction(req):
       'ts': response.get('message_ts'),
       'text': '',
       'attachments': original_message.get('attachments'),
-    },  headers={'Authorization': 'Bearer '})
-    print(update_req.text)
+    },  headers={'Authorization': 'Bearer {}'.format(current_app.config['SLACK_API_TOKEN'])})
   return ''
 
 
