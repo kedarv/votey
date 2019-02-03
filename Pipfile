@@ -12,6 +12,8 @@ flask = "*"
 emoji = "*"
 gunicorn = "*"
 flask-sqlalchemy = "*"
+pew = "*"
+requests = "*"
 
 [requires]
 python_version = "3.7"
