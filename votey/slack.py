@@ -85,6 +85,7 @@ def handle_poll_creation(req):
       'title': '',
       'value': NUM_TO_SLACKMOJI[(counter+1)] + ' ' + option_text + '\n\n\n',
       'short': False,
+      "mrkdwn": "true",
     })
 
   attachments = [
@@ -143,7 +144,11 @@ def handle_button_interaction(req):
     for voter in votes:
       vote_list.append('<@' + voter.user + '>')
 
-    original_message.get('attachments')[0].get('fields')[position-1]['value'] = NUM_TO_SLACKMOJI[(position)] + ' ' + option.option_text + '\n' + ','.join(vote_list) + '\n\n'
+    if len(vote_list) > 0:
+      field_text = NUM_TO_SLACKMOJI[(position)] + ' ' + option.option_text + '\t `'+ str(len(vote_list)) +'` \n' + ','.join(vote_list) + '\n\n'
+    else:
+      field_text = NUM_TO_SLACKMOJI[(position)] + ' ' + option.option_text + '\n' + ','.join(vote_list) + '\n\n'
+    original_message.get('attachments')[0].get('fields')[position-1]['value'] = field_text
     update_req = requests.post('https://slack.com/api/chat.update', json = {
       'channel': channel,
       'ts': response.get('message_ts'),
