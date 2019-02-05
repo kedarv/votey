@@ -61,7 +61,7 @@ def oauth():
 
 def handle_poll_creation(req):
   workspace = Workspace.query.filter_by(team_id=req.get('team_id')).first()
-  command = shlex.split(req.get('text'))
+  command = shlex.split(req.get('text').replace('“','"').replace('”','"'))
   poll_question = command.pop(0)
   actions = []
   fields = []
