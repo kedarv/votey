@@ -61,7 +61,10 @@ def oauth():
 
 def handle_poll_creation(req):
   workspace = Workspace.query.filter_by(team_id=req.get('team_id')).first()
-  command = shlex.split(req.get('text').replace('“','"').replace('”','"'))
+  command = get_command_from_req(req, workspace)
+  if command is None:
+    return ''
+
   poll_question = command.pop(0)
   actions = []
   fields = []
@@ -94,6 +97,8 @@ def handle_poll_creation(req):
       'mrkdwn_in': ['fields'],
       'color': '#6ecadc',
       'fields': fields,
+      'footer': 'Poll created by <@' + req.get('user_id') + '>',
+      'ts': time.time(),
     },
     {
       'text': ' ',
@@ -108,7 +113,6 @@ def handle_poll_creation(req):
     'channel': req.get('channel_id'),
     'attachments': attachments,
   }, headers={'Authorization': 'Bearer {}'.format(workspace.token)})
-
   return ''
 
 def handle_button_interaction(req):
@@ -171,3 +175,21 @@ def valid_request(request):
   ).hexdigest()
   return hmac.compare_digest(request_hash, slack_signature)
 
+def get_command_from_req(request, workspace):
+  split = shlex.split(request.get('text').replace('“','"').replace('”','"'))
+  if len(split) < 3:
+    send_ephemeral_message(
+      workspace,
+      request.get('channel_id'),
+      request.get('user_id'),
+      'Oops - a poll needs to have at least two options. Try again with `/votey "question" "option 1" "option 2"`',
+    )
+    return None
+  return split
+
+def send_ephemeral_message(workspace, channel, user, text):
+    post_message = requests.post('https://slack.com/api/chat.postEphemeral', json = {
+    'channel': channel,
+    'user': user,
+    'text': text,
+  }, headers={'Authorization': 'Bearer {}'.format(workspace.token)})
