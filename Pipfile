@@ -4,17 +4,17 @@ url = "https://pypi.org/simple"
 verify_ssl = true
 
 [dev-packages]
-prospector = "*"
 mypy = "*"
+prospector = "*"
 
 [packages]
-flask = "*"
 emoji = "*"
-gunicorn = "*"
+flask = "*"
 flask-sqlalchemy = "*"
+gunicorn = "*"
 pew = "*"
+psycopg2-binary = "*"
 requests = "*"
-psycopg2 = "*"
 
 [requires]
 python_version = "3.7"

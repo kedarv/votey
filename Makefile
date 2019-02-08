@@ -12,7 +12,7 @@ venv:
 	virtualenv -p python3 venv
 	venv/bin/pip install -rrequirements-bootstrap.txt
 
-poetry: | venv
+pipenv: | venv
 	venv/bin/pipenv install -d
 
 run: | venv

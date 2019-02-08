@@ -176,13 +176,30 @@ def valid_request(request):
   return hmac.compare_digest(request_hash, slack_signature)
 
 def get_command_from_req(request, workspace):
-  split = shlex.split(request.get('text').replace('“','"').replace('”','"'))
+  try:
+    split = shlex.split(request.get('text').replace('“','"').replace('”','"'))
+  except ValueError as e:
+    send_ephemeral_message(
+      workspace,
+      request.get('channel_id'),
+      request.get('user_id'),
+      f'We had trouble parsing that - {e}'
+    )
+    return None
   if len(split) < 3:
     send_ephemeral_message(
       workspace,
       request.get('channel_id'),
       request.get('user_id'),
       'Oops - a poll needs to have at least two options. Try again with `/votey "question" "option 1" "option 2"`',
+    )
+    return None
+  elif len(split) > 6:
+    send_ephemeral_message(
+      workspace,
+      request.get('channel_id'),
+      request.get('user_id'),
+      'Sorry - Votey only supports 5 options at the moment, due to limitations in the Slack API',
     )
     return None
   return split
