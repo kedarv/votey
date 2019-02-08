@@ -6,3 +6,4 @@ class Default:
   CLIENT_ID = os.environ.get('CLIENT_ID')
   CLIENT_SECRET = os.environ.get('CLIENT_SECRET')
   SIGNING_SECRET = os.environ.get('SIGNING_SECRET')
+  SQLALCHEMY_TRACK_MODIFICATIONS = False
