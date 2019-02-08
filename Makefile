@@ -17,3 +17,7 @@ pipenv: | venv
 
 run: | venv
 	venv/bin/pipenv run python run.py
+
+lint: | venv
+	venv/bin/pipenv run mypy --ignore-missing-imports votey --strict
+	venv/bin/pipenv run prospector -A
