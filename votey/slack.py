@@ -1,22 +1,22 @@
 from flask import Blueprint
 from flask import request
 from flask import current_app
-from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Tuple
 from werkzeug.local import LocalProxy
-import shlex
-import uuid
+import functools
+import hashlib
+import hmac
 import json
 import requests
+import shlex
 import time
-import hmac
-import hashlib
+import uuid
 
 from .models import Poll, Option, Vote, Workspace
 from votey import db
-
+from .utils import batch, gets_buttons, gets_id, JSON
 
 bp = Blueprint('slack', __name__)
 
@@ -28,9 +28,17 @@ NUM_TO_SLACKMOJI = {
     5: ':five:',
     6: ':six:',
     7: ':seven:',
+    8: ':eight:',
+    9: ':nine:',
+    10: ':keycap_ten:',
 }
 
-JSON = Dict[str, str]
+ANON_KEYWORDS = {
+    '--anonymous',
+    '-anonymous',
+    '-anon',
+    '--anon',
+}
 
 @bp.route('/slack', methods=['POST'])  # type: ignore
 def slack() -> str:
@@ -106,15 +114,15 @@ def handle_poll_creation(req: JSON) -> str:
             if anonymous else f'Poll created by <@{req.get("user_id")}>',
             'ts': time.time(),
         },
-        {
-            'text': ' ',
-            'callback_id': poll.poll_identifier(),
-            'attachment_type': 'default',
-            'color': '#6ecadc',
-            'actions': actions
-        }
     ]
-
+    for batched in batch(actions, 5):
+        attachments.append({
+                'text': ' ',
+                'callback_id': poll.poll_identifier(),
+                'attachment_type': 'default',
+                'color': '#6ecadc',
+                'actions': batched
+        })
     requests.post(
         'https://slack.com/api/chat.postMessage',
         json = {'channel': req.get('channel_id'), 'attachments': attachments},
@@ -152,17 +160,17 @@ def handle_button_interaction(req: JSON) -> str:
             db.session.add(vote)
         db.session.commit()
 
-        position = 0
-        for button in attachments[1].get('actions'):
-            if int(button.get('value')) == option.id:
-                position = int(button.get('id'))
+        buttons: List[JSON] = functools.reduce(gets_buttons, attachments, [{}])
+        position = functools.reduce(gets_id(option.id), buttons, -1)
+        if position == -1:
+            return 'hmm..'
 
         votes = Vote.query.filter_by(option_id=option.id).all()
         num = f'`{len(votes)}`'
         field_text = f'{NUM_TO_SLACKMOJI[position]} {option.option_text}\t' \
                                  f'{num if votes else ""}\n' \
                                  f'{thumbs(votes) if poll.anonymous else names(votes)}\n\n'
-        attachments[0].get('fields')[position-1]['value'] = field_text
+        attachments[0].get('fields')[position - 1]['value'] = field_text
         requests.post('https://slack.com/api/chat.update', json = {
             'channel': channel,
             'ts': response.get('message_ts'),
@@ -210,6 +218,13 @@ def get_command_from_req(
             f'We had trouble parsing that - {e}',
         )
         return None, False
+
+    if ANON_KEYWORDS.isdisjoint(split):
+        anonymous = False
+    else:
+        anonymous = True
+        split = list(set(split).difference(ANON_KEYWORDS))
+
     if len(split) < 3:
         send_ephemeral_message(
             workspace,
@@ -219,21 +234,17 @@ def get_command_from_req(
             'Try again with `/votey "question" "option 1" "option 2"`',
         )
         return None, False
-    if len(split) > 7 or (not is_anonymous(split) and len(split) > 6):
+    if len(split) > 11:
         send_ephemeral_message(
             workspace,
             request.get('channel_id', ''),
             request.get('user_id', ''),
-            'Sorry - Votey only supports 5 options at the moment, ' \
-            'due to limitations in the Slack API',
+            'Sorry - Votey only supports 10 options at the moment.',
         )
         return None, False
-    if is_anonymous(split):
-        return split[0:-1], True
-    return split, False
 
-def is_anonymous(words: List[str]) -> bool:
-    return words[-1] == 'anonymous'
+    return split, anonymous
+
 
 def send_ephemeral_message(
     workspace: Workspace,
