@@ -30,12 +30,6 @@ def create_app(config: Optional[Dict[str, Any]] = None) -> Flask:
 
     db.init_app(app)
 
-    # paasta healthcheck
-    @app.route('/status')  # type: ignore
-    def dummy() -> str:
-        hostname = app.config.get('SERVER_NAME') or gethostname()
-        return f'OK - {hostname}'
-
     # slack interaction
     from . import slack
     app.register_blueprint(slack.bp)

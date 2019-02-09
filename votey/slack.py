@@ -6,13 +6,14 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 from werkzeug.local import LocalProxy
-import shlex
-import uuid
+import functools
+import hashlib
+import hmac
 import json
 import requests
+import shlex
 import time
-import hmac
-import hashlib
+import uuid
 
 from .models import Poll, Option, Vote, Workspace
 from votey import db
@@ -31,6 +32,13 @@ NUM_TO_SLACKMOJI = {
     8: ':eight:',
     9: ':nine:',
     10: ':keycap_ten:',
+}
+
+ANON_KEYWORDS = {
+    '--anonymous',
+    '-anonymous',
+    '-anon',
+    '--anon',
 }
 
 JSON = Dict[str, str]
@@ -76,7 +84,6 @@ def handle_poll_creation(req: JSON) -> str:
     poll_question = command.pop(0)
     actions = []
     fields = []
-    slack_actions = []
 
     poll = Poll(uuid.uuid4(), poll_question, anonymous)
     db.session.add(poll)
@@ -157,18 +164,31 @@ def handle_button_interaction(req: JSON) -> str:
         db.session.commit()
 
         position = 0
-        for attachment in attachments:
-            if attachment.get('actions'):
-                for button in attachment.get('actions'):
-                    if int(button.get('value')) == option.id:
-                        position = int(button.get('id'))
+        buttons: List[JSON] = functools.reduce(
+            lambda acc, nxt:
+                nxt.get('actions')
+                if nxt.get('actions')
+                else acc,
+            attachments,
+            [],
+        )
+        position = functools.reduce(
+            lambda acc, nxt:
+                int(nxt.get('id', '-1'))
+                if int(nxt.get('value', '-1')) == option.id
+                else acc,
+            buttons,
+            -1,
+        )
+        if position == -1:
+            return 'hmm..'
 
         votes = Vote.query.filter_by(option_id=option.id).all()
         num = f'`{len(votes)}`'
         field_text = f'{NUM_TO_SLACKMOJI[position]} {option.option_text}\t' \
                                  f'{num if votes else ""}\n' \
                                  f'{thumbs(votes) if poll.anonymous else names(votes)}\n\n'
-        attachments[0].get('fields')[position-1]['value'] = field_text
+        attachments[0].get('fields')[position - 1]['value'] = field_text
         requests.post('https://slack.com/api/chat.update', json = {
             'channel': channel,
             'ts': response.get('message_ts'),
@@ -216,6 +236,13 @@ def get_command_from_req(
             f'We had trouble parsing that - {e}',
         )
         return None, False
+
+    if any(word in ANON_KEYWORDS for word in split):
+        anonymous = True
+        split = list(set(split).difference(ANON_KEYWORDS))
+    else:
+        anonymous = False
+
     if len(split) < 3:
         send_ephemeral_message(
             workspace,
@@ -225,7 +252,7 @@ def get_command_from_req(
             'Try again with `/votey "question" "option 1" "option 2"`',
         )
         return None, False
-    if len(split) > 12 or (not is_anonymous(split) and len(split) > 11):
+    if len(split) > 11:
         send_ephemeral_message(
             workspace,
             request.get('channel_id', ''),
@@ -233,18 +260,9 @@ def get_command_from_req(
             'Sorry - Votey only supports 10 options at the moment.',
         )
         return None, False
-    if is_anonymous(split):
-        return split[0:-1], True
-    return split, False
 
-def is_anonymous(words: List[str]) -> bool:
-  anonymous_keywords = {
-    '--anonymous',
-    '-anonymous',
-    '-anon',
-    '--anon',
-  }
-  return not set(words).isdisjoint(anonymous_keywords)
+    return split, anonymous
+
 
 def send_ephemeral_message(
     workspace: Workspace,
