@@ -16,7 +16,7 @@ import hashlib
 
 from .models import Poll, Option, Vote, Workspace
 from votey import db
-
+from .utils import batch
 
 bp = Blueprint('slack', __name__)
 
@@ -28,6 +28,9 @@ NUM_TO_SLACKMOJI = {
     5: ':five:',
     6: ':six:',
     7: ':seven:',
+    8: ':eight:',
+    9: ':nine:',
+    10: ':keycap_ten:',
 }
 
 JSON = Dict[str, str]
@@ -73,6 +76,7 @@ def handle_poll_creation(req: JSON) -> str:
     poll_question = command.pop(0)
     actions = []
     fields = []
+    slack_actions = []
 
     poll = Poll(uuid.uuid4(), poll_question, anonymous)
     db.session.add(poll)
@@ -106,15 +110,15 @@ def handle_poll_creation(req: JSON) -> str:
             if anonymous else f'Poll created by <@{req.get("user_id")}>',
             'ts': time.time(),
         },
-        {
-            'text': ' ',
-            'callback_id': poll.poll_identifier(),
-            'attachment_type': 'default',
-            'color': '#6ecadc',
-            'actions': actions
-        }
     ]
-
+    for batched in batch(actions, 5):
+        attachments.append({
+                'text': ' ',
+                'callback_id': poll.poll_identifier(),
+                'attachment_type': 'default',
+                'color': '#6ecadc',
+                'actions': batched
+        })
     requests.post(
         'https://slack.com/api/chat.postMessage',
         json = {'channel': req.get('channel_id'), 'attachments': attachments},
@@ -153,9 +157,11 @@ def handle_button_interaction(req: JSON) -> str:
         db.session.commit()
 
         position = 0
-        for button in attachments[1].get('actions'):
-            if int(button.get('value')) == option.id:
-                position = int(button.get('id'))
+        for attachment in attachments:
+            if attachment.get('actions'):
+                for button in attachment.get('actions'):
+                    if int(button.get('value')) == option.id:
+                        position = int(button.get('id'))
 
         votes = Vote.query.filter_by(option_id=option.id).all()
         num = f'`{len(votes)}`'
@@ -219,13 +225,12 @@ def get_command_from_req(
             'Try again with `/votey "question" "option 1" "option 2"`',
         )
         return None, False
-    if len(split) > 7 or (not is_anonymous(split) and len(split) > 6):
+    if len(split) > 12 or (not is_anonymous(split) and len(split) > 11):
         send_ephemeral_message(
             workspace,
             request.get('channel_id', ''),
             request.get('user_id', ''),
-            'Sorry - Votey only supports 5 options at the moment, ' \
-            'due to limitations in the Slack API',
+            'Sorry - Votey only supports 10 options at the moment.',
         )
         return None, False
     if is_anonymous(split):
@@ -233,7 +238,13 @@ def get_command_from_req(
     return split, False
 
 def is_anonymous(words: List[str]) -> bool:
-    return words[-1] == 'anonymous'
+  anonymous_keywords = {
+    '--anonymous',
+    '-anonymous',
+    '-anon',
+    '--anon',
+  }
+  return not set(words).isdisjoint(anonymous_keywords)
 
 def send_ephemeral_message(
     workspace: Workspace,
