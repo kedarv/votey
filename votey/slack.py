@@ -1,7 +1,6 @@
 from flask import Blueprint
 from flask import request
 from flask import current_app
-from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Tuple
@@ -17,7 +16,7 @@ import uuid
 
 from .models import Poll, Option, Vote, Workspace
 from votey import db
-from .utils import batch
+from .utils import batch, gets_buttons, gets_id, JSON
 
 bp = Blueprint('slack', __name__)
 
@@ -40,8 +39,6 @@ ANON_KEYWORDS = {
     '-anon',
     '--anon',
 }
-
-JSON = Dict[str, str]
 
 @bp.route('/slack', methods=['POST'])  # type: ignore
 def slack() -> str:
@@ -163,23 +160,8 @@ def handle_button_interaction(req: JSON) -> str:
             db.session.add(vote)
         db.session.commit()
 
-        position = 0
-        buttons: List[JSON] = functools.reduce(
-            lambda acc, nxt:
-                nxt.get('actions')
-                if nxt.get('actions')
-                else acc,
-            attachments,
-            [],
-        )
-        position = functools.reduce(
-            lambda acc, nxt:
-                int(nxt.get('id', '-1'))
-                if int(nxt.get('value', '-1')) == option.id
-                else acc,
-            buttons,
-            -1,
-        )
+        buttons: List[JSON] = functools.reduce(gets_buttons, attachments, [{}])
+        position = functools.reduce(gets_id(option.id), buttons, -1)
         if position == -1:
             return 'hmm..'
 
@@ -237,11 +219,11 @@ def get_command_from_req(
         )
         return None, False
 
-    if any(word in ANON_KEYWORDS for word in split):
+    if ANON_KEYWORDS.isdisjoint(split):
+        anonymous = False
+    else:
         anonymous = True
         split = list(set(split).difference(ANON_KEYWORDS))
-    else:
-        anonymous = False
 
     if len(split) < 3:
         send_ephemeral_message(

@@ -1,5 +1,4 @@
 import os
-from socket import gethostname
 from typing import Any
 from typing import Dict
 from typing import Optional
