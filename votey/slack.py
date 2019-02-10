@@ -126,6 +126,7 @@ def handle_poll_creation(req: JSON) -> str:
                 'color': '#6ecadc',
                 'actions': batched
         })
+
     delete_attachment = {
         'text': ' ',
         'callback_id': poll.poll_identifier(),
@@ -139,6 +140,7 @@ def handle_poll_creation(req: JSON) -> str:
     res = send_message(workspace, channel, attachments=attachments).json()
     poll.ts = res['ts']
     db.session.commit()
+
     send_message(
         workspace,
         req.get('user_id', ''),
@@ -218,15 +220,12 @@ def handle_poll_deletion(response: AnyJSON) -> str:
         poll_id=poll.id
     ).delete()
 
-    print(poll.ts)
-
     db.session.delete(poll)
     db.session.commit()
     res = requests.post('https://slack.com/api/chat.delete', json={
         'channel': poll.channel,
         'ts': poll.ts,
     }, headers={'Authorization': f'Bearer {workspace.token}'})
-    print(res.json())
     return res.text
 
 

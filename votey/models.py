@@ -44,7 +44,7 @@ class Poll(db.Model):  # type: ignore
     anonymous: bool = db.Column(db.Boolean, nullable=False, default=False)
     options: List[Option] = db.relationship('Option', backref='poll', lazy=True)
     votes: List[Vote] = db.relationship('Vote', backref='poll', lazy=True)
-    ts: Optional[str] = db.Column(db.Float, nullable=True)
+    ts: Optional[str] = db.Column(db.Text, nullable=True)
     channel: str = db.Column(db.Text, nullable=False)
 
     def __init__(
