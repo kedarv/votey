@@ -272,7 +272,7 @@ def get_command_from_req(
         anonymous = False
     else:
         anonymous = True
-        split = list(set(split).difference(ANON_KEYWORDS))
+        split = [word for word in split if word not in ANON_KEYWORDS]
 
     if len(split) < 3:
         send_ephemeral_message(
