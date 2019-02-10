@@ -226,7 +226,7 @@ def handle_poll_deletion(response: AnyJSON) -> str:
         'channel': poll.channel,
         'ts': poll.ts,
     }, headers={'Authorization': f'Bearer {workspace.token}'})
-    return res.text
+    return 'All gone!'
 
 
 def thumbs(votes: List[Vote]) -> str:
