@@ -6,7 +6,6 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 from werkzeug.local import LocalProxy
-import functools
 import hashlib
 import hmac
 import json
@@ -17,7 +16,7 @@ import uuid
 
 from .models import Poll, Option, Vote, Workspace
 from votey import db
-from .utils import batch, gets_id, AnyJSON, JSON
+from .utils import batch, AnyJSON, JSON
 
 bp = Blueprint('slack', __name__)
 
@@ -95,7 +94,7 @@ def handle_poll_creation(req: JSON) -> str:
         db.session.commit()
 
         actions.append({
-            'name': 'vote',
+            'name': str(counter),
             'text': NUM_TO_SLACKMOJI[counter + 1],
             'value': option.id,
             'type': 'button'
@@ -186,17 +185,14 @@ def handle_vote(response: AnyJSON) -> str:
             db.session.add(vote)
         db.session.commit()
 
-        buttons = attachments[attachment_id - 1].get('actions', [])
-        position = functools.reduce(gets_id(option.id), buttons, -1)
-        if position == -1:
-            return 'hmm..'
+        position = int(response.get('actions', [])[0]['name'])
 
         votes = Vote.query.filter_by(option_id=option.id).all()
         num = f'`{len(votes)}`'
-        field_text = f'{NUM_TO_SLACKMOJI[position]} {option.option_text}\t' \
+        field_text = f'{NUM_TO_SLACKMOJI[position+1]} {option.option_text}\t' \
                                  f'{num if votes else ""}\n' \
                                  f'{thumbs(votes) if poll.anonymous else names(votes)}\n\n'
-        attachments[0].get('fields')[position - 1]['value'] = field_text
+        attachments[0].get('fields')[position]['value'] = field_text
         requests.post('https://slack.com/api/chat.update', json={
             'channel': channel,
             'ts': response.get('message_ts'),
