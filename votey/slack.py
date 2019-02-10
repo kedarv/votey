@@ -137,7 +137,7 @@ def handle_poll_creation(req: JSON) -> str:
         }]
     }
     res = send_message(workspace, channel, attachments=attachments).json()
-    poll.ts = res['message_ts']
+    poll.ts = res['ts']
     db.session.commit()
     send_message(
         workspace,
