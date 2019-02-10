@@ -1,4 +1,5 @@
 from typing import List
+from typing import Optional
 
 from sqlalchemy.dialects.postgresql import UUID
 
@@ -43,10 +44,19 @@ class Poll(db.Model):  # type: ignore
     anonymous: bool = db.Column(db.Boolean, nullable=False, default=False)
     options: List[Option] = db.relationship('Option', backref='poll', lazy=True)
     votes: List[Vote] = db.relationship('Vote', backref='poll', lazy=True)
+    ts: Optional[float] = db.Column(db.Float, nullable=True)
+    channel: str = db.Column(db.Text, nullable=False)
 
-    def __init__(self, identifier: UUID, question: str, anonymous: bool = False):
+    def __init__(
+        self,
+        identifier: UUID,
+        question: str,
+        channel: str,
+        anonymous: bool = False,
+    ):
         self.identifier = identifier
         self.question = question
+        self.channel = channel
         self.anonymous = anonymous
 
     def poll_identifier(self) -> str:
