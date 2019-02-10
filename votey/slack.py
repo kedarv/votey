@@ -1,6 +1,7 @@
 from flask import Blueprint
 from flask import request
 from flask import current_app
+from typing import Any
 from typing import List
 from typing import Optional
 from typing import Tuple
@@ -16,7 +17,7 @@ import uuid
 
 from .models import Poll, Option, Vote, Workspace
 from votey import db
-from .utils import batch, gets_buttons, gets_id, JSON
+from .utils import batch, gets_id, AnyJSON, JSON
 
 bp = Blueprint('slack', __name__)
 
@@ -78,11 +79,13 @@ def handle_poll_creation(req: JSON) -> str:
     if command is None:
         return ''
 
+    channel = req.get('channel_id', '')
+
     poll_question = command.pop(0)
     actions = []
     fields = []
 
-    poll = Poll(uuid.uuid4(), poll_question, anonymous)
+    poll = Poll(uuid.uuid4(), poll_question, channel, anonymous)
     db.session.add(poll)
     db.session.commit()
 
@@ -123,27 +126,48 @@ def handle_poll_creation(req: JSON) -> str:
                 'color': '#6ecadc',
                 'actions': batched
         })
-    requests.post(
-        'https://slack.com/api/chat.postMessage',
-        json = {'channel': req.get('channel_id'), 'attachments': attachments},
-        headers={'Authorization': f'Bearer {workspace.token}'},
+    delete_attachment = {
+        'text': ' ',
+        'callback_id': poll.poll_identifier(),
+        'actions': [{
+            'name': 'delete',
+            'text': 'Delete',
+            'type': 'button',
+            'style': 'danger',
+        }]
+    }
+    res = send_message(workspace, channel, attachments=attachments).json()
+    poll.ts = res['message_ts']
+    db.session.commit()
+    send_message(
+        workspace,
+        req.get('user_id', ''),
+        text=f'Delete your last poll, "{poll_question}"?',
+        attachments=[delete_attachment]
     )
     return ''
 
+
 def handle_button_interaction(req: JSON) -> str:
-    response = json.loads(req.get('payload', ''))
+    res = json.loads(req.get('payload', ''))
+    button = res.get('actions')[0]['name']
+    return handle_poll_deletion(res) if button == 'delete' else handle_vote(res)
+
+
+def handle_vote(response: AnyJSON) -> str:
     poll = Poll.query.filter_by(
         identifier=response.get('callback_id')
     ).first()
     option = Option.query.filter_by(
-        id=response.get('actions')[0]['value']
+        id=response.get('actions', [])[0]['value']
     ).first()
     workspace = Workspace.query.filter_by(
-        team_id=response.get('team').get('id')
+        team_id=response.get('team', {}).get('id')
     ).first()
-    user = response.get('user').get('id')
-    channel = response.get('channel').get('id')
-    original_message = response.get('original_message')
+    user = response.get('user', {}).get('id')
+    channel = response.get('channel', {}).get('id')
+    attachment_id = int(response.get('attachment_id', '-1'))
+    original_message = response.get('original_message', {})
     attachments = original_message.get('attachments')
 
     if poll is not None and option is not None:
@@ -160,7 +184,7 @@ def handle_button_interaction(req: JSON) -> str:
             db.session.add(vote)
         db.session.commit()
 
-        buttons: List[JSON] = functools.reduce(gets_buttons, attachments, [{}])
+        buttons = attachments[attachment_id - 1].get('actions', [])
         position = functools.reduce(gets_id(option.id), buttons, -1)
         if position == -1:
             return 'hmm..'
@@ -171,13 +195,39 @@ def handle_button_interaction(req: JSON) -> str:
                                  f'{num if votes else ""}\n' \
                                  f'{thumbs(votes) if poll.anonymous else names(votes)}\n\n'
         attachments[0].get('fields')[position - 1]['value'] = field_text
-        requests.post('https://slack.com/api/chat.update', json = {
+        requests.post('https://slack.com/api/chat.update', json={
             'channel': channel,
             'ts': response.get('message_ts'),
             'text': '',
             'attachments': attachments,
         },  headers={'Authorization': f'Bearer {workspace.token}'})
     return ''
+
+
+def handle_poll_deletion(response: AnyJSON) -> str:
+    workspace = Workspace.query.filter_by(
+        team_id=response.get('team', {}).get('id')
+    ).first()
+    poll = Poll.query.filter_by(
+        identifier=response.get('callback_id')
+    ).first()
+    votes = Vote.query.filter_by(
+        poll_id=poll.id
+    ).delete()
+    options = Option.query.filter_by(
+        poll_id=poll.id
+    ).delete()
+
+    print(poll.ts)
+
+    db.session.delete(poll)
+    db.session.commit()
+    res = requests.post('https://slack.com/api/chat.delete', json={
+        'channel': poll.channel,
+        'ts': poll.ts,
+    }, headers={'Authorization': f'Bearer {workspace.token}'})
+    print(res.json())
+    return res.text
 
 
 def thumbs(votes: List[Vote]) -> str:
@@ -250,10 +300,27 @@ def send_ephemeral_message(
     workspace: Workspace,
     channel: str,
     user: str,
-    text: str
+    text: str,
 ) -> requests.Response:
     return requests.post(
         'https://slack.com/api/chat.postEphemeral',
-        json = {'channel': channel, 'user': user, 'text': text},
+        json={'channel': channel, 'user': user, 'text': text},
+        headers={'Authorization': f'Bearer {workspace.token}'},
+    )
+
+def send_message(
+    workspace: Workspace,
+    dest: str,
+    text: Optional[str] = None,
+    attachments: Optional[List[Any]] = None,
+) -> requests.Response:
+    body: Any = {'channel': dest}
+    if text is not None:
+        body['text'] = text
+    if attachments is not None:
+        body['attachments'] = attachments
+    return requests.post(
+        'https://slack.com/api/chat.postMessage',
+        json=body,
         headers={'Authorization': f'Bearer {workspace.token}'},
     )
