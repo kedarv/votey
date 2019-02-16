@@ -13,6 +13,7 @@ import requests
 import shlex
 import time
 import uuid
+from flask import jsonify
 
 from .models import Poll, Option, Vote, Workspace
 from votey import db
@@ -73,6 +74,7 @@ def oauth() -> str:
     return 'something went wrong :('
 
 def handle_poll_creation(req: JSON) -> str:
+    current_app.logger.debug('creating poll with json {}'.format(req))
     workspace = Workspace.query.filter_by(team_id=req.get('team_id')).first()
     command, anonymous = get_command_from_req(req, workspace)
     if command is None:
@@ -136,16 +138,27 @@ def handle_poll_creation(req: JSON) -> str:
             'style': 'danger',
         }]
     }
+    current_app.logger.debug('writing poll to channel {}'.format(channel))
     res = send_message(workspace, channel, attachments=attachments).json()
-    poll.ts = res['ts']
-    db.session.commit()
+    current_app.logger.debug('got poll creation response: {}'.format(res))
+    if 'ts' in res:
+        poll.ts = res['ts']
+        db.session.commit()
 
-    send_message(
-        workspace,
-        req.get('user_id', ''),
-        text=f'Delete your last poll, "{poll_question}"?',
-        attachments=[delete_attachment]
-    )
+        send_message(
+            workspace,
+            req.get('user_id', ''),
+            text=f'Delete your last poll, "{poll_question}"?',
+            attachments=[delete_attachment]
+        )
+    else:
+        body = {
+            'response_type': 'in_channel',
+            'text': ' ',
+            'attachments': attachments,
+        }
+        current_app.logger.debug('DIRECTLY returning {}'.format(body))
+        return jsonify(body)
     return ''
 
 
@@ -156,6 +169,7 @@ def handle_button_interaction(req: JSON) -> str:
 
 
 def handle_vote(response: AnyJSON) -> str:
+    current_app.logger.debug('handling vote with req {}'.format(response))
     poll = Poll.query.filter_by(
         identifier=response.get('callback_id')
     ).first()
@@ -193,12 +207,7 @@ def handle_vote(response: AnyJSON) -> str:
                                  f'{num if votes else ""}\n' \
                                  f'{thumbs(votes) if poll.anonymous else names(votes)}\n\n'
         attachments[0].get('fields')[position]['value'] = field_text
-        requests.post('https://slack.com/api/chat.update', json={
-            'channel': channel,
-            'ts': response.get('message_ts'),
-            'text': '',
-            'attachments': attachments,
-        },  headers={'Authorization': f'Bearer {workspace.token}'})
+        return jsonify(original_message)
     return ''
 
 
