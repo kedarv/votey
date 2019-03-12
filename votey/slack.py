@@ -279,13 +279,13 @@ def get_command_from_req(
         anonymous = True
         split = [word for word in split if word not in ANON_KEYWORDS]
 
-    if len(split) < 3:
+    if len(split) < 2:
         send_ephemeral_message(
             workspace,
             request.get('channel_id', ''),
             request.get('user_id', ''),
-            'Oops - a poll needs to have at least two options. ' \
-            'Try again with `/votey "question" "option 1" "option 2"`',
+            'Oops - a poll needs to have at least one option. ' \
+            'Try again with `/votey "question" "option 1"`',
         )
         return None, False
     if len(split) > 11:
