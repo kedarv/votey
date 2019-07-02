@@ -17,7 +17,7 @@ from flask import jsonify
 
 from .models import Poll, Option, Vote, Workspace
 from votey import db
-from .utils import batch, AnyJSON, JSON
+from .utils import batch, AnyJSON, JSON, get_footer
 
 bp = Blueprint('slack', __name__)
 
@@ -39,6 +39,16 @@ ANON_KEYWORDS = {
     '-anonymous',
     '-anon',
     '--anon',
+}
+
+SECRET_KEYWORDS = {
+    '--secret',
+    '-secret',
+}
+
+EXPLODE_KEYWORDS = {
+    '--explode',
+    '-explode',
 }
 
 @bp.route('/slack', methods=['POST'])  # type: ignore
@@ -76,7 +86,7 @@ def oauth() -> str:
 def handle_poll_creation(req: JSON) -> str:
     current_app.logger.debug('creating poll with json {}'.format(req))
     workspace = Workspace.query.filter_by(team_id=req.get('team_id')).first()
-    command, anonymous = get_command_from_req(req, workspace)
+    command, anonymous, secret, explode = get_command_from_req(req, workspace)
     if command is None:
         return ''
 
@@ -86,7 +96,7 @@ def handle_poll_creation(req: JSON) -> str:
     actions = []
     fields = []
 
-    poll = Poll(uuid.uuid4(), poll_question, channel, anonymous)
+    poll = Poll(uuid.uuid4(), poll_question, channel, anonymous, secret, explode)
     db.session.add(poll)
     db.session.commit()
 
@@ -114,8 +124,7 @@ def handle_poll_creation(req: JSON) -> str:
             'mrkdwn_in': ['fields'],
             'color': '#6ecadc',
             'fields': fields,
-            'footer': f'Anonymous poll created by <@{req.get("user_id")}>'
-            if anonymous else f'Poll created by <@{req.get("user_id")}>',
+            'footer': get_footer(req.get('user_id'), anonymous, secret, explode),
             'ts': time.time(),
         },
     ]
@@ -259,7 +268,7 @@ def valid_request(request: LocalProxy) -> bool:
 def get_command_from_req(
     request: JSON,
     workspace: Workspace
-) -> Tuple[Optional[List[str]], bool]:
+) -> Tuple[Optional[List[str]], bool, bool, bool]:
     try:
         split = shlex.split(request.get('text', '') \
             .replace('“','"') \
@@ -279,6 +288,21 @@ def get_command_from_req(
         anonymous = True
         split = [word for word in split if word not in ANON_KEYWORDS]
 
+    if SECRET_KEYWORDS.isdisjoint(split):
+        secret = False
+    else:
+        secret = True
+        anonymous = True
+        split = [word for word in split if word not in SECRET_KEYWORDS]
+
+    if EXPLODE_KEYWORDS.isdisjoint(split):
+        explode = False
+    else:
+        secret = True
+        anonymous = True
+        explode = True
+        split = [word for word in split if word not in EXPLODE_KEYWORDS]
+
     if len(split) < 2:
         send_ephemeral_message(
             workspace,
@@ -297,7 +321,7 @@ def get_command_from_req(
         )
         return None, False
 
-    return split, anonymous
+    return split, anonymous, secret, explode
 
 
 def send_ephemeral_message(
