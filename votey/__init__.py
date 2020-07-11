@@ -8,15 +8,16 @@ from flask_sqlalchemy import SQLAlchemy
 
 db = SQLAlchemy()
 
+
 def create_app(config: Optional[Dict[str, Any]] = None) -> Flask:
     # create and configure the app
     app = Flask(__name__, instance_relative_config=True)
-    app.config.from_mapping(SECRET_KEY='dev')
-    app.config.from_object('votey.config.Default')
+    app.config.from_mapping(SECRET_KEY="dev")
+    app.config.from_object("votey.config.Default")
 
     if config is None:
         # load the instance config, if it exists, when not testing
-        app.config.from_envvar('VOTEY_CONFIG', silent=True)
+        app.config.from_envvar("VOTEY_CONFIG", silent=True)
     else:
         # load the test config if passed in
         app.config.from_mapping(config)
@@ -31,6 +32,7 @@ def create_app(config: Optional[Dict[str, Any]] = None) -> Flask:
 
     # slack interaction
     from . import slack
+
     app.register_blueprint(slack.bp)
 
     return app

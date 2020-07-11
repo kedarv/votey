@@ -1,9 +1,11 @@
+import time
 from typing import List
 from typing import Optional
-import time
+
 from sqlalchemy.dialects.postgresql import UUID
 
 from . import db
+
 
 class Workspace(db.Model):  # type: ignore
     id: int = db.Column(db.Integer, primary_key=True)
@@ -16,10 +18,11 @@ class Workspace(db.Model):  # type: ignore
         self.name = name
         self.token = token
 
+
 class Vote(db.Model):  # type: ignore
     id: int = db.Column(db.Integer, primary_key=True)
-    poll_id: int = db.Column(db.Integer, db.ForeignKey('poll.id'), nullable=False)
-    option_id: int = db.Column(db.Integer, db.ForeignKey('option.id'), nullable=False)
+    poll_id: int = db.Column(db.Integer, db.ForeignKey("poll.id"), nullable=False)
+    option_id: int = db.Column(db.Integer, db.ForeignKey("option.id"), nullable=False)
     user: str = db.Column(db.Text, nullable=False)
 
     def __init__(self, poll_id: int, option_id: int, user: str):
@@ -27,15 +30,17 @@ class Vote(db.Model):  # type: ignore
         self.option_id = option_id
         self.user = user
 
+
 class Option(db.Model):  # type: ignore
     id: int = db.Column(db.Integer, primary_key=True)
-    poll_id: int = db.Column(db.Integer, db.ForeignKey('poll.id'), nullable=False)
+    poll_id: int = db.Column(db.Integer, db.ForeignKey("poll.id"), nullable=False)
     option_text: str = db.Column(db.Text, nullable=False)
-    votes: List[Vote] = db.relationship('Vote', backref='option', lazy=True)
+    votes: List[Vote] = db.relationship("Vote", backref="option", lazy=True)
 
     def __init__(self, poll_id: int, option_text: str):
         self.poll_id = poll_id
         self.option_text = option_text
+
 
 class Poll(db.Model):  # type: ignore
     id: int = db.Column(db.Integer, primary_key=True)
@@ -43,9 +48,8 @@ class Poll(db.Model):  # type: ignore
     question: str = db.Column(db.Text, nullable=False)
     anonymous: bool = db.Column(db.Boolean, nullable=False, default=False)
     secret: bool = db.Column(db.Boolean, nullable=False, default=False)
-    explode: bool = db.Column(db.Boolean, nullable=False, default=False)
-    options: List[Option] = db.relationship('Option', backref='poll', lazy=True)
-    votes: List[Vote] = db.relationship('Vote', backref='poll', lazy=True)
+    options: List[Option] = db.relationship("Option", backref="poll", lazy=True)
+    votes: List[Vote] = db.relationship("Vote", backref="poll", lazy=True)
     ts: Optional[str] = db.Column(db.Text, nullable=True)
     channel: str = db.Column(db.Text, nullable=False)
     created_at: str = db.Column(db.Text, nullable=False)
@@ -57,15 +61,13 @@ class Poll(db.Model):  # type: ignore
         channel: str,
         anonymous: bool = False,
         secret: bool = False,
-        explode: bool = False,
     ):
         self.identifier = identifier
         self.question = question
         self.channel = channel
         self.anonymous = anonymous
         self.secret = secret
-        self.explode = explode
         self.created_at = str(int(time.time()))
 
     def poll_identifier(self) -> str:
-        return f'{self.identifier}'
+        return f"{self.identifier}"

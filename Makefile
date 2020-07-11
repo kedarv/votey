@@ -1,3 +1,6 @@
+.PHONY: all clean-cache clean venv pipenv run mypy prospector lint
+.DEFAULT_GOAL := all
+
 clean-cache:
 	find . -name '*.pyc' -delete
 	find . -name '__pycache__' -delete
@@ -25,3 +28,5 @@ prospector: | venv
 	venv/bin/pipenv run prospector -A
 
 lint: mypy prospector
+
+all: | pipenv
