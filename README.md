@@ -4,7 +4,7 @@ a simple slack polling slash command - because paying for polls is kind of stupi
 
 
 ## Installation
-Votey runs on Python 3.7, so you'll need to make sure your environment has Python 3.7 and [Pipenv](https://pipenv.readthedocs.io/en/latest/) installed.
+Votey runs on Python 3.8, so you'll need to make sure your environment has Python 3.8 and [Pipenv](https://pipenv.readthedocs.io/en/latest/) installed.
 
 Run `pipenv shell` and `pipenv install` in the cloned directory.
 Next, create a configuration file:
