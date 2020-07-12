@@ -13,5 +13,10 @@
       {
         "plan": "heroku-postgresql"
       }
+    ],
+    "buildpacks": [
+      {
+        "url": "heroku/python"
+      }
     ]
   }
