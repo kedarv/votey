@@ -11,23 +11,14 @@ db = SQLAlchemy()
 
 def create_app(config: Optional[Dict[str, Any]] = None) -> Flask:
     # create and configure the app
-    app = Flask(__name__, instance_relative_config=True)
-    app.config.from_mapping(SECRET_KEY="dev")
-    app.config.from_object("votey.config.Default")
-
-    if config is None:
-        # load the instance config, if it exists, when not testing
-        app.config.from_envvar("VOTEY_CONFIG", silent=True)
-    else:
-        # load the test config if passed in
-        app.config.from_mapping(config)
-
-    # ensure the instance folder exists
-    try:
-        os.makedirs(app.instance_path)
-    except OSError:
-        pass
-
+    app = Flask(__name__)
+    app.config.update(
+        SQLALCHEMY_DATABASE_URI=os.getenv("DATABASE_URL"),
+        CLIENT_ID=os.getenv("CLIENT_ID"),
+        CLIENT_SECRET=os.getenv("CLIENT_SECRET"),
+        SIGNING_SECRET=os.getenv("SIGNING_SECRET"),
+        SQLALCHEMY_TRACK_MODIFICATIONS=False,
+    )
     db.init_app(app)
 
     # slack interaction

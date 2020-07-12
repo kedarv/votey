@@ -21,6 +21,6 @@ def get_footer(user_id: str, anonymous: bool, secret: bool) -> str:
     if secret:
         return "Poll creator and votes are hidden."
     if anonymous:
-        return f"Anonymous poll created by <@{user_id}>."
+        return f"Anonymous poll created by <@{user_id}> with /votey"
 
-    return f"Poll created by <@{user_id}>"
+    return f"Poll created by <@{user_id}> with /votey"

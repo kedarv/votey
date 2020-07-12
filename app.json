@@ -1,0 +1,17 @@
+{
+    "name": "votey",
+    "description": "Polls for Slack Workspaces",
+    "keywords": [
+      "slack",
+      "votey",
+      "python"
+    ],
+    "website": "https://github.com/kedarv/votey",
+    "repository": "https://github.com/kedarv/votey",
+    "logo": "https://avatars.slack-edge.com/2019-02-03/542373038406_e00fc70d95d3dc28a35b_512.png",
+    "addons": [
+      {
+        "plan": "heroku-postgresql"
+      }
+    ]
+  }

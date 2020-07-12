@@ -7,25 +7,21 @@ a simple slack polling slash command - because paying for polls is kind of stupi
 Votey runs on Python 3.7, so you'll need to make sure your environment has Python 3.7 and [Pipenv](https://pipenv.readthedocs.io/en/latest/) installed.
 
 Run `pipenv shell` and `pipenv install` in the cloned directory.
-Next, create a configuration file:
+Next, copy the `.env.example` file to `.env`
 
-```
-mkdir instance
-touch instance/dev.cfg
-```
-
-Your `dev.cfg` file should look something like this:
+Your `.env` file should look something like this:
 
 ```
 SQLALCHEMY_DATABASE_URI='postgres://some_postgres_connection_string'
 CLIENT_ID='slack_client_id'
 CLIENT_SECRET='slack_client_secret'
 SIGNING_SECRET='slack_signing_secret'
+FLASK_ENV='development'
 ```
 
 Go ahead and fill the above with your actual Slack API information, and your postgres database uri string. As a note, you can get a free postgres database provisioned on [Heroku](http://herokuapp.com) (you'll need to create an app and provision the Heroku Postgres addon - the connection string will be attached to your app's environment config variables).
 
-Finally, run `VOTEY_CONFIG=dev.cfg make run`
+Finally, run `make run`
 
 Everything should launch up now!
 
