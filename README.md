@@ -2,6 +2,8 @@
 
 a simple slack polling slash command - because paying for polls is kind of stupid
 
+![Votey Screenshot](https://user-images.githubusercontent.com/1365665/87252413-a9d07100-c427-11ea-9cc0-751902c99062.png)
+
 ## Deploying for Production
 
 [![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy)
