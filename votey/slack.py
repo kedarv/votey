@@ -229,8 +229,8 @@ def handle_poll_deletion(response: AnyJSON) -> str:
         team_id=response.get("team", {}).get("id")
     ).first()
     poll = Poll.query.filter_by(identifier=response.get("callback_id")).first()
-    # votes = Vote.query.filter_by(poll_id=poll.id).delete()
-    # options = Option.query.filter_by(poll_id=poll.id).delete()
+    Vote.query.filter_by(poll_id=poll.id).delete()
+    Option.query.filter_by(poll_id=poll.id).delete()
 
     db.session.delete(poll)
     db.session.commit()
