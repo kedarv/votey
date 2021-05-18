@@ -112,7 +112,7 @@ def handle_poll_creation(req: JSON) -> Any:
         actions.append(
             {
                 "name": str(counter),
-                "text": option_data[1] or NUM_TO_SLACKMOJI[counter + 1],
+                "text": option.option_emoji or NUM_TO_SLACKMOJI[counter + 1],
                 "value": option.id,
                 "type": "button",
             }
@@ -120,7 +120,7 @@ def handle_poll_creation(req: JSON) -> Any:
         fields.append(
             {
                 "title": "",
-                "value": f"{option_data[1] or NUM_TO_SLACKMOJI[counter + 1]} {option_data[0]}\n\n\n",
+                "value": f"{option.option_emoji or NUM_TO_SLACKMOJI[counter + 1]} {option.option_text}\n\n\n",
                 "short": False,
                 "mrkdwn": "true",
             }
