@@ -35,11 +35,13 @@ class Option(db.Model):  # type: ignore
     id: int = db.Column(db.Integer, primary_key=True)
     poll_id: int = db.Column(db.Integer, db.ForeignKey("poll.id"), nullable=False)
     option_text: str = db.Column(db.Text, nullable=False)
+    option_emoji: str = db.Column(db.Text, nullable=True)
     votes: List[Vote] = db.relationship("Vote", backref="option", lazy=True)
 
-    def __init__(self, poll_id: int, option_text: str):
+    def __init__(self, poll_id: int, option_text: str, option_emoji: str):
         self.poll_id = poll_id
         self.option_text = option_text
+        self.option_emoji = option_emoji
 
 
 class Poll(db.Model):  # type: ignore

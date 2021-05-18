@@ -71,7 +71,7 @@ def oauth() -> str:
     client_secret = current_app.config["CLIENT_SECRET"]
     oauth = requests.get(
         "https://slack.com/api/oauth.access",
-        params={"code": code, "client_id": client_id, "client_secret": client_secret},  # type: ignore
+        params={"code": code, "client_id": client_id, "client_secret": client_secret},
     )
     if oauth.json().get("ok"):
         team_id = oauth.json().get("team_id")
@@ -91,13 +91,12 @@ def oauth() -> str:
 def handle_poll_creation(req: JSON) -> Any:
     current_app.logger.debug("creating poll with json {}".format(req))
     workspace = Workspace.query.filter_by(team_id=req.get("team_id")).first()
-    command, anonymous, secret = get_command_from_req(req, workspace)
-    if command is None:
+    poll_question, options, anonymous, secret = get_command_from_req(req, workspace)
+    if poll_question is None:
         return ""
 
     channel = req.get("channel_id", "")
 
-    poll_question = command.pop(0)
     actions = []
     fields = []
 
@@ -105,15 +104,15 @@ def handle_poll_creation(req: JSON) -> Any:
     db.session.add(poll)
     db.session.commit()
 
-    for counter, option_text in enumerate(command):
-        option = Option(poll.id, option_text)
+    for counter, option_data in enumerate(options):
+        option = Option(poll.id, option_data[0], option_data[1])
         db.session.add(option)
         db.session.commit()
 
         actions.append(
             {
                 "name": str(counter),
-                "text": NUM_TO_SLACKMOJI[counter + 1],
+                "text": option.option_emoji or NUM_TO_SLACKMOJI[counter + 1],
                 "value": option.id,
                 "type": "button",
             }
@@ -121,7 +120,7 @@ def handle_poll_creation(req: JSON) -> Any:
         fields.append(
             {
                 "title": "",
-                "value": f"{NUM_TO_SLACKMOJI[counter + 1]} {option_text}\n\n\n",
+                "value": f"{option.option_emoji or NUM_TO_SLACKMOJI[counter + 1]} {option.option_text}\n\n\n",
                 "short": False,
                 "mrkdwn": "true",
             }
@@ -189,11 +188,6 @@ def handle_vote(response: AnyJSON) -> Any:
     current_app.logger.debug("handling vote with req {}".format(response))
     poll = Poll.query.filter_by(identifier=response.get("callback_id")).first()
     option = Option.query.filter_by(id=response.get("actions", [])[0]["value"]).first()
-    # workspace = Workspace.query.filter_by(
-    #     team_id=response.get("team", {}).get("id")
-    # ).first()
-    # channel = response.get("channel", {}).get("id")
-    # attachment_id = int(response.get("attachment_id", "-1"))
     user = response.get("user", {}).get("id")
     original_message = response.get("original_message", {})
     attachments = original_message.get("attachments")
@@ -215,7 +209,7 @@ def handle_vote(response: AnyJSON) -> Any:
         votes = Vote.query.filter_by(option_id=option.id).all()
         num = f"`{len(votes)}`"
         field_text = (
-            f"{NUM_TO_SLACKMOJI[position+1]} {option.option_text}\t"
+            f"{option.option_emoji or NUM_TO_SLACKMOJI[position+1]} {option.option_text}\t"
             f'{num if votes else ""}\n'
             f"{thumbs(votes) if poll.anonymous else names(votes)}\n\n"
         )
@@ -272,9 +266,10 @@ def valid_request(request: Any) -> bool:
 
 def get_command_from_req(
     request: JSON, workspace: Workspace
-) -> Tuple[Optional[List[str]], bool, bool]:
+) -> Tuple[Optional[str], List[Tuple[str, Optional[str]]], bool, bool]:
     try:
-        split = shlex.split(request.get("text", "").replace("“", '"').replace("”", '"'))
+        fixed_quote_string = request.get("text", "").replace("“", '"').replace("”", '"')
+        split = shlex.split(fixed_quote_string, posix=False)
     except ValueError as e:
         send_ephemeral_message(
             workspace,
@@ -282,7 +277,7 @@ def get_command_from_req(
             request.get("user_id", ""),
             f"We had trouble parsing that - {e}",
         )
-        return None, False, False
+        return None, [], False, False
 
     if ANON_KEYWORDS.isdisjoint(split):
         anonymous = False
@@ -305,7 +300,7 @@ def get_command_from_req(
             "Oops - a poll needs to have at least one option. "
             'Try again with `/votey "question" "option 1"`',
         )
-        return None, False, False
+        return None, [], False, False
     if len(split) > 11:
         send_ephemeral_message(
             workspace,
@@ -313,9 +308,28 @@ def get_command_from_req(
             request.get("user_id", ""),
             "Sorry - Votey only supports 10 options at the moment.",
         )
-        return None, False, False
+        return None, [], False, False
 
-    return split, anonymous, secret
+    poll_question = split.pop(0)
+    if poll_question.startswith('"') and poll_question.endswith('"'):
+        poll_question = poll_question[1:-1]
+
+    options: List[Tuple[str, Optional[str]]] = []
+    while split:
+        option = split.pop(0)
+        if option.startswith('"') and option.endswith('"'):
+            option = option[1:-1]
+
+        maybe_emoji = None
+        if split:
+            maybe_emoji = split.pop(0)
+            # If the next item in the list is not an emoji, put it back and set emoji to None
+            if(not maybe_emoji.startswith(":") or not maybe_emoji.endswith(":")):
+                split.insert(0, maybe_emoji)
+                maybe_emoji = None
+
+        options.append((option, maybe_emoji))
+    return poll_question, options, anonymous, secret
 
 
 def send_ephemeral_message(
