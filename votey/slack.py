@@ -105,15 +105,14 @@ def handle_poll_creation(req: JSON) -> Any:
     db.session.commit()
 
     for counter, option_data in enumerate(options):
-        emoji = option_data[1] or NUM_TO_SLACKMOJI[counter + 1]
-        option = Option(poll.id, option_data[0], emoji)
+        option = Option(poll.id, option_data[0], option_data[1])
         db.session.add(option)
         db.session.commit()
 
         actions.append(
             {
                 "name": str(counter),
-                "text": emoji,
+                "text": option_data[1] or NUM_TO_SLACKMOJI[counter + 1],
                 "value": option.id,
                 "type": "button",
             }
@@ -121,7 +120,7 @@ def handle_poll_creation(req: JSON) -> Any:
         fields.append(
             {
                 "title": "",
-                "value": f"{emoji} {option_data[0]}\n\n\n",
+                "value": f"{option_data[1] or NUM_TO_SLACKMOJI[counter + 1]} {option_data[0]}\n\n\n",
                 "short": False,
                 "mrkdwn": "true",
             }
@@ -189,11 +188,6 @@ def handle_vote(response: AnyJSON) -> Any:
     current_app.logger.debug("handling vote with req {}".format(response))
     poll = Poll.query.filter_by(identifier=response.get("callback_id")).first()
     option = Option.query.filter_by(id=response.get("actions", [])[0]["value"]).first()
-    # workspace = Workspace.query.filter_by(
-    #     team_id=response.get("team", {}).get("id")
-    # ).first()
-    # channel = response.get("channel", {}).get("id")
-    # attachment_id = int(response.get("attachment_id", "-1"))
     user = response.get("user", {}).get("id")
     original_message = response.get("original_message", {})
     attachments = original_message.get("attachments")
@@ -329,6 +323,7 @@ def get_command_from_req(
         maybe_emoji = None
         if split:
             maybe_emoji = split.pop(0)
+            # If the next item in the list is not an emoji, put it back and set emoji to None
             if(not maybe_emoji.startswith(":") or not maybe_emoji.endswith(":")):
                 split.insert(0, maybe_emoji)
                 maybe_emoji = None
