@@ -50,6 +50,7 @@ class Poll(db.Model):  # type: ignore
     question: str = db.Column(db.Text, nullable=False)
     anonymous: bool = db.Column(db.Boolean, nullable=False, default=False)
     secret: bool = db.Column(db.Boolean, nullable=False, default=False)
+    vote_emoji: str = db.Column(db.Text, nullable=True)
     options: List[Option] = db.relationship("Option", backref="poll", lazy=True)
     votes: List[Vote] = db.relationship("Vote", backref="poll", lazy=True)
     ts: Optional[str] = db.Column(db.Text, nullable=True)
@@ -63,12 +64,14 @@ class Poll(db.Model):  # type: ignore
         channel: str,
         anonymous: bool = False,
         secret: bool = False,
+        vote_emoji: str = None,
     ):
         self.identifier = identifier
         self.question = question
         self.channel = channel
         self.anonymous = anonymous
         self.secret = secret
+        self.vote_emoji = vote_emoji
         self.created_at = str(int(time.time()))
 
     def poll_identifier(self) -> str:
