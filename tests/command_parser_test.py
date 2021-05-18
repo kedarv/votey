@@ -10,7 +10,7 @@ SECOND_OPTION = "Some Option2"
 
 
 def test_basic_command():
-    poll_question, options, anonymous, secret = get_command_from_req(
+    poll_question, options, anonymous, secret, anon_secret_emoji = get_command_from_req(
         {"text": f'"{QUESTION}" "{FIRST_OPTION}" "{SECOND_OPTION}"'}, MagicMock()
     )
     assert poll_question == QUESTION
@@ -23,7 +23,7 @@ def test_basic_command():
     SECRET_KEYWORDS,
 )
 def test_secret(keyword):
-    poll_question, options, anonymous, secret = get_command_from_req(
+    poll_question, options, anonymous, secret, anon_secret_emoji = get_command_from_req(
         {"text": f'"{QUESTION}" "{FIRST_OPTION}" "{SECOND_OPTION}" {keyword}'},
         MagicMock(),
     )
@@ -35,7 +35,7 @@ def test_secret(keyword):
     ANON_KEYWORDS,
 )
 def test_anonymous(keyword):
-    poll_question, options, anonymous, secret = get_command_from_req(
+    poll_question, options, anonymous, secret, anon_secret_emoji = get_command_from_req(
         {"text": f'"{QUESTION}" "{FIRST_OPTION}" "{SECOND_OPTION}" {keyword}'},
         MagicMock(),
     )
@@ -44,7 +44,7 @@ def test_anonymous(keyword):
     assert secret == False
 
 def test_emoji_option_command():
-    poll_question, options, anonymous, secret = get_command_from_req(
+    poll_question, options, anonymous, secret, anon_secret_emoji = get_command_from_req(
         {"text": f'"{QUESTION}" "{FIRST_OPTION}" :someemoji1: "{SECOND_OPTION}" :someemoji2:'}, MagicMock()
     )
     assert poll_question == QUESTION
@@ -53,7 +53,7 @@ def test_emoji_option_command():
     assert secret == False    
 
 def test_emoji_option_command_without_last_option():
-    poll_question, options, anonymous, secret = get_command_from_req(
+    poll_question, options, anonymous, secret, anon_secret_emoji = get_command_from_req(
         {"text": f'"{QUESTION}" "{FIRST_OPTION}" :someemoji1: "{SECOND_OPTION}"'}, MagicMock()
     )
     assert poll_question == QUESTION
@@ -62,7 +62,7 @@ def test_emoji_option_command_without_last_option():
     assert secret == False        
 
 def test_emoji_option_command_without_first_option():
-    poll_question, options, anonymous, secret = get_command_from_req(
+    poll_question, options, anonymous, secret, anon_secret_emoji = get_command_from_req(
         {"text": f'"{QUESTION}" "{FIRST_OPTION}" "{SECOND_OPTION}" :some-emoji:'}, MagicMock()
     )
     assert poll_question == QUESTION
@@ -71,7 +71,7 @@ def test_emoji_option_command_without_first_option():
     assert secret == False
 
 def test_emoji_option_command_with_secret():
-    poll_question, options, anonymous, secret = get_command_from_req(
+    poll_question, options, anonymous, secret, anon_secret_emoji = get_command_from_req(
         {"text": f'"{QUESTION}" "{FIRST_OPTION}" "{SECOND_OPTION}" :some-emoji: --secret'}, MagicMock()
     )
     assert poll_question == QUESTION
@@ -80,10 +80,30 @@ def test_emoji_option_command_with_secret():
     assert secret == True         
 
 def test_emoji_option_command_with_anonymous():
-    poll_question, options, anonymous, secret = get_command_from_req(
+    poll_question, options, anonymous, secret, anon_secret_emoji = get_command_from_req(
         {"text": f'"{QUESTION}" "{FIRST_OPTION}" :some-emoji: "{SECOND_OPTION}" --anonymous'}, MagicMock()
     )
     assert poll_question == QUESTION
     assert options == [(FIRST_OPTION, ":some-emoji:"), (SECOND_OPTION, None)]
     assert anonymous == True
     assert secret == False      
+
+def test_anonymous_with_voting_emoji():
+    poll_question, options, anonymous, secret, anon_secret_emoji = get_command_from_req(
+        {"text": f'"{QUESTION}" "{FIRST_OPTION}" :some-emoji: "{SECOND_OPTION}" --anonymous=:soccer:'}, MagicMock()
+    )
+    assert poll_question == QUESTION
+    assert options == [(FIRST_OPTION, ":some-emoji:"), (SECOND_OPTION, None)]
+    assert anonymous == True
+    assert secret == False 
+    assert anon_secret_emoji == ":soccer:"         
+
+def test_secret_with_voting_emoji():
+    poll_question, options, anonymous, secret, anon_secret_emoji = get_command_from_req(
+        {"text": f'"{QUESTION}" "{FIRST_OPTION}" :some-emoji: "{SECOND_OPTION}" --secret=:soccer:'}, MagicMock()
+    )
+    assert poll_question == QUESTION
+    assert options == [(FIRST_OPTION, ":some-emoji:"), (SECOND_OPTION, None)]
+    assert anonymous == True
+    assert secret == True 
+    assert anon_secret_emoji == ":soccer:"             
