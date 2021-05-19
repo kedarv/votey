@@ -33,7 +33,7 @@ Once OAuth has successfully completed, you're ready to start using Votey!
 ### Installation
 Votey runs on Python 3.8, so you'll need to make sure your environment has Python 3.8 and [Pipenv](https://pipenv.readthedocs.io/en/latest/) installed.
 
-Run `pipenv shell` and `pipenv install` in the cloned directory.
+Run `pipenv shell` and `pipenv install -d` in the cloned directory.
 Next, copy the `.env.example` file to `.env`
 
 Your `.env` file should look something like this:
@@ -46,8 +46,10 @@ SIGNING_SECRET='slack_signing_secret'
 FLASK_ENV='development'
 ```
 
-Go ahead and fill the above with your actual Slack API information (refer to the **Deploying for Production** section above), and your postgres database uri string. If you don't have a postgres database running, you can either set one up locally or use the `Deploy with Heroku` button above to have a database provisioned for free. To boot the app, run `make start`.
+Go ahead and fill the above with your actual Slack API information (refer to the **Deploying for Production** section above), and your postgres database uri string. If you don't have a postgres database running, you can either set one up locally or use the `Deploy with Heroku` button above to have a database provisioned for free. To boot the app, run `pipenv run start`.
 
 Connecting your app to Slack follows the same procedure as the **Deploying for Production** section above, but instead of using Heroku's domain, you'll need to use a tunneling forwarding program like [ngrok.io](http://ngrok.io/).
+
+Before committing, don't forget to run `pipenv run install-hooks` so our pre-commit checks will run.
 
 Happy Developing!
