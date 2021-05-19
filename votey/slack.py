@@ -112,7 +112,7 @@ def handle_poll_creation(req: JSON) -> Any:
         channel=channel,
         anonymous=cmd.anonymous,
         secret=cmd.secret,
-        anon_secret_emoji=cmd.anon_secret_emoji,
+        vote_emoji=cmd.vote_emoji,
     )
     db.session.add(poll)
     db.session.commit()
@@ -305,6 +305,7 @@ class Command:
     options: List[OptionData]
     anonymous: bool
     secret: bool
+    vote_emoji: Optional[str]
 
 
 def get_command_from_req(request: JSON, workspace: Workspace) -> Optional[Command]:
@@ -340,13 +341,13 @@ def get_command_from_req(request: JSON, workspace: Workspace) -> Optional[Comman
         for word in split
         if any(keyword in word for keyword in ANON_KEYWORDS.union(SECRET_KEYWORDS))
     ]
-    anon_secret_emoji = None
+    vote_emoji = None
     if (
         anon_secret_opt
         and "=" in anon_secret_opt[0]
         and is_slackmoji(anon_secret_opt[0].split("=")[1])
     ):
-        anon_secret_emoji = anon_secret_opt[0].split("=")[1]
+        vote_emoji = anon_secret_opt[0].split("=")[1]
 
     # Filter out the anonymous or secret options
     split = [
@@ -402,7 +403,7 @@ def get_command_from_req(request: JSON, workspace: Workspace) -> Optional[Comman
         options=options,
         anonymous=anonymous,
         secret=secret,
-        anon_secret_emoji=anon_secret_emoji,
+        vote_emoji=vote_emoji,
     )
 
 

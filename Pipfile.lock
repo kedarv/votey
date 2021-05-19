@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "2b24e8c541a034f462f709d1b5ba1335c3a90065bac24709cd7718eee90fd275"
+            "sha256": "b7d4c85b7b7ff6cd10be8405cf35d748b4f2aeaf3147461ab4d497921b5d8d6f"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -54,9 +54,6 @@
             ],
             "index": "pypi",
             "version": "==2.5.1"
-        },
-        "flask-sqlalchemy-stubs": {
-            "git": "https://github.com/ssfdust/flask-sqlalchemy-stubs.git"
         },
         "greenlet": {
             "hashes": [
@@ -235,7 +232,6 @@
             "version": "==2.25.1"
         },
         "sqlalchemy": {
-            "extras": [],
             "hashes": [
                 "sha256:05ea2c275603b3fb5ce761d0ccabe47a376ed8a48f70e1d4c80a71f185224d3f",
                 "sha256:0ff100c75cd175f35f4d24375a0b3d82461f5b1af5fc8d112ef0e5ceea8049e6",
@@ -370,6 +366,10 @@
                 "sha256:e44b087597f6da52ec6393a709e7108b2905317d0c0b744cdca6208e670d8eda"
             ],
             "version": "==1.0.2"
+        },
+        "flask-sqlalchemy-stubs": {
+            "git": "https://github.com/ssfdust/flask-sqlalchemy-stubs.git",
+            "ref": "103bf6c7802d778c87938ea9d06ee24b1e552b52"
         },
         "gitdb": {
             "hashes": [
@@ -676,7 +676,7 @@
                 "sha256:1e61c37477a1626458e36f7b1d82aa5c9b094fa4802892072e49de9c60c4c926",
                 "sha256:8abb2f1d86890a2dfb989f9a77cfcfd3e47c2a354b01111771326f8aa26e0254"
             ],
-            "markers": "python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3'",
+            "markers": "python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2'",
             "version": "==1.16.0"
         },
         "smmap": {
@@ -715,7 +715,7 @@
                 "sha256:806143ae5bfb6a3c6e736a764057db0e6a0e05e338b5630894a5f779cabb4f9b",
                 "sha256:b3bda1d108d5dd99f4a20d24d9c348e91c4db7ab1b749200bded2f839ccbe68f"
             ],
-            "markers": "python_version >= '2.6' and python_version not in '3.0, 3.1, 3.2, 3.3'",
+            "markers": "python_version >= '2.6' and python_version not in '3.0, 3.1, 3.2'",
             "version": "==0.10.2"
         },
         "typed-ast": {

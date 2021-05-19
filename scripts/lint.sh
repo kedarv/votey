@@ -4,5 +4,5 @@
 set -euxo pipefail
 
 mypy votey
-prospector -A
+prospector -A -w bandit
 pipenv check
