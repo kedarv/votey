@@ -1,78 +1,57 @@
-import time
-from typing import List
-from typing import Optional
+from typing import TYPE_CHECKING
 
-from sqlalchemy.dialects.postgresql import UUID
+from .exts import db
 
-from . import db
+if TYPE_CHECKING:
+    import uuid
 
+    from flask_sqlalchemy.model import Model
+    from sqlalchemy.types import TypeEngine
 
-class Workspace(db.Model):  # type: ignore
-    id: int = db.Column(db.Integer, primary_key=True)
-    team_id: str = db.Column(db.Text, nullable=False)
-    name: str = db.Column(db.Text, nullable=False)
-    token: str = db.Column(db.Text, nullable=False)
+    BaseModel = db.make_declarative_base(Model)
+    UUID = TypeEngine[uuid.UUID]  # pylint: disable=unsubscriptable-object
 
-    def __init__(self, team_id: str, name: str, token: str) -> None:
-        self.team_id = team_id
-        self.name = name
-        self.token = token
+else:
+    import sqlalchemy.dialects.postgresql
 
-
-class Vote(db.Model):  # type: ignore
-    id: int = db.Column(db.Integer, primary_key=True)
-    poll_id: int = db.Column(db.Integer, db.ForeignKey("poll.id"), nullable=False)
-    option_id: int = db.Column(db.Integer, db.ForeignKey("option.id"), nullable=False)
-    user: str = db.Column(db.Text, nullable=False)
-
-    def __init__(self, poll_id: int, option_id: int, user: str):
-        self.poll_id = poll_id
-        self.option_id = option_id
-        self.user = user
+    BaseModel = db.Model
+    UUID = sqlalchemy.dialects.postgresql.UUID(as_uuid=True)
 
 
-class Option(db.Model):  # type: ignore
-    id: int = db.Column(db.Integer, primary_key=True)
-    poll_id: int = db.Column(db.Integer, db.ForeignKey("poll.id"), nullable=False)
-    option_text: str = db.Column(db.Text, nullable=False)
-    option_emoji: str = db.Column(db.Text, nullable=True)
-    votes: List[Vote] = db.relationship("Vote", backref="option", lazy=True)
-
-    def __init__(self, poll_id: int, option_text: str, option_emoji: str):
-        self.poll_id = poll_id
-        self.option_text = option_text
-        self.option_emoji = option_emoji
+class Workspace(BaseModel):
+    id = db.Column(db.Integer, primary_key=True)
+    team_id = db.Column(db.Text, nullable=False)
+    name = db.Column(db.Text, nullable=False)
+    token = db.Column(db.Text, nullable=False)
 
 
-class Poll(db.Model):  # type: ignore
-    id: int = db.Column(db.Integer, primary_key=True)
-    identifier: UUID = db.Column(UUID(as_uuid=True), unique=True, nullable=False)
-    question: str = db.Column(db.Text, nullable=False)
-    anonymous: bool = db.Column(db.Boolean, nullable=False, default=False)
-    secret: bool = db.Column(db.Boolean, nullable=False, default=False)
-    vote_emoji: str = db.Column(db.Text, nullable=True)
-    options: List[Option] = db.relationship("Option", backref="poll", lazy=True)
-    votes: List[Vote] = db.relationship("Vote", backref="poll", lazy=True)
-    ts: Optional[str] = db.Column(db.Text, nullable=True)
-    channel: str = db.Column(db.Text, nullable=False)
-    created_at: str = db.Column(db.Text, nullable=False)
+class Vote(BaseModel):
+    id = db.Column(db.Integer, primary_key=True)
+    poll_id = db.Column(db.Integer, db.ForeignKey("poll.id"), nullable=False)
+    option_id = db.Column(db.Integer, db.ForeignKey("option.id"), nullable=False)
+    user = db.Column(db.Text, nullable=False)
 
-    def __init__(
-        self,
-        identifier: UUID,
-        question: str,
-        channel: str,
-        anonymous: bool = False,
-        secret: bool = False,
-        vote_emoji: str = None,
-    ):
-        self.identifier = identifier
-        self.question = question
-        self.channel = channel
-        self.anonymous = anonymous
-        self.secret = secret
-        self.vote_emoji = vote_emoji
-        self.created_at = str(int(time.time()))
+
+class Option(BaseModel):
+    id = db.Column(db.Integer, primary_key=True)
+    poll_id = db.Column(db.Integer, db.ForeignKey("poll.id"), nullable=False)
+    option_text = db.Column(db.Text, nullable=False)
+    option_emoji = db.Column(db.Text, nullable=True)
+    votes = db.relationship("Vote", backref="option", lazy="select")
+
+
+class Poll(BaseModel):
+    id = db.Column(db.Integer, primary_key=True)
+    identifier = db.Column(UUID, unique=True, nullable=False)
+    question = db.Column(db.Text, nullable=False)
+    anonymous = db.Column(db.Boolean, nullable=False, default=False)
+    secret = db.Column(db.Boolean, nullable=False, default=False)
+    vote_emoji = db.Column(db.Text, nullable=True)
+    options = db.relationship("Option", backref="poll", lazy="select")
+    votes = db.relationship("Vote", backref="poll", lazy="select")
+    ts = db.Column(db.Text, nullable=True)
+    channel = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False)
 
     def poll_identifier(self) -> str:
         return f"{self.identifier}"

@@ -4,10 +4,10 @@ import json
 import shlex
 import time
 import uuid
+from dataclasses import dataclass
 from typing import Any
 from typing import List
 from typing import Optional
-from typing import Tuple
 
 import requests
 from flask import Blueprint
@@ -15,6 +15,7 @@ from flask import current_app
 from flask import jsonify
 from flask import request
 
+from .exts import db
 from .models import Option
 from .models import Poll
 from .models import Vote
@@ -23,7 +24,6 @@ from .utils import AnyJSON
 from .utils import batch
 from .utils import get_footer
 from .utils import JSON
-from votey import db
 
 bp = Blueprint("slack", __name__)
 
@@ -81,7 +81,11 @@ def oauth() -> str:
         if workspace is not None:
             workspace.token = token
         else:
-            workspace = Workspace(team_id, name, token)
+            workspace = Workspace(
+                team_id=team_id,
+                name=name,
+                token=token,
+            )
             db.session.add(workspace)
         db.session.commit()
         return f"thanks! votey has been installed to <b>{name}</b>. you can close this tab."
@@ -91,8 +95,10 @@ def oauth() -> str:
 def handle_poll_creation(req: JSON) -> Any:
     current_app.logger.debug("creating poll with json {}".format(req))
     workspace = Workspace.query.filter_by(team_id=req.get("team_id")).first()
-    poll_question, options, anonymous, secret, anon_secret_emoji = get_command_from_req(req, workspace)
-    if poll_question is None:
+    if workspace is None:
+        return ""
+    cmd = get_command_from_req(req, workspace)
+    if cmd is None:
         return ""
 
     channel = req.get("channel_id", "")
@@ -100,12 +106,23 @@ def handle_poll_creation(req: JSON) -> Any:
     actions = []
     fields = []
 
-    poll = Poll(uuid.uuid4(), poll_question, channel, anonymous, secret, anon_secret_emoji)
+    poll = Poll(
+        identifier=uuid.uuid4(),
+        question=cmd.question,
+        channel=channel,
+        anonymous=cmd.anonymous,
+        secret=cmd.secret,
+        anon_secret_emoji=cmd.anon_secret_emoji,
+    )
     db.session.add(poll)
     db.session.commit()
 
-    for counter, option_data in enumerate(options):
-        option = Option(poll.id, option_data[0], option_data[1])
+    for counter, option_data in enumerate(cmd.options):
+        option = Option(
+            poll_id=poll.id,
+            option_text=option_data.text,
+            option_emoji=option_data.emoji,
+        )
         db.session.add(option)
         db.session.commit()
 
@@ -128,11 +145,11 @@ def handle_poll_creation(req: JSON) -> Any:
 
     attachments = [
         {
-            "text": poll_question,
+            "text": cmd.question,
             "mrkdwn_in": ["fields"],
             "color": "#6ecadc",
             "fields": fields,
-            "footer": get_footer(req.get("user_id", ""), anonymous, secret),
+            "footer": get_footer(req.get("user_id", ""), cmd.anonymous, cmd.secret),
             "ts": time.time(),
         },
     ]
@@ -164,7 +181,7 @@ def handle_poll_creation(req: JSON) -> Any:
         send_message(
             workspace,
             req.get("user_id", ""),
-            text=f'Delete your last poll, "{poll_question}"?',
+            text=f'Delete your last poll, "{cmd.question}"?',
             attachments=[delete_attachment],
         )
     else:
@@ -198,9 +215,13 @@ def handle_vote(response: AnyJSON) -> Any:
         ).first()
 
         if vote:
-            db.session.delete(vote)
+            db.session.delete(vote)  # type: ignore
         else:
-            vote = Vote(poll.id, option.id, user)
+            vote = Vote(
+                poll_id=poll.id,
+                option_id=option.id,
+                user=user,
+            )
             db.session.add(vote)
         db.session.commit()
 
@@ -223,10 +244,12 @@ def handle_poll_deletion(response: AnyJSON) -> str:
         team_id=response.get("team", {}).get("id")
     ).first()
     poll = Poll.query.filter_by(identifier=response.get("callback_id")).first()
+    if poll is None or workspace is None:
+        return ""
     Vote.query.filter_by(poll_id=poll.id).delete()
     Option.query.filter_by(poll_id=poll.id).delete()
 
-    db.session.delete(poll)
+    db.session.delete(poll)  # type: ignore
     db.session.commit()
 
     requests.post(
@@ -246,8 +269,10 @@ def thumbs(votes: List[Vote], vote_emoji: Optional[str]) -> str:
 def names(votes: List[Vote]) -> str:
     return ",".join([f"<@{vote.user}>" for vote in votes])
 
+
 def is_slackmoji(string: str) -> bool:
     return string.startswith(":") and string.endswith(":")
+
 
 def valid_request(request: Any) -> bool:
     timestamp = request.headers["X-Slack-Request-Timestamp"]
@@ -268,9 +293,21 @@ def valid_request(request: Any) -> bool:
     return hmac.compare_digest(request_hash, slack_signature)
 
 
-def get_command_from_req(
-    request: JSON, workspace: Workspace
-) -> Tuple[Optional[str], List[Tuple[str, Optional[str]]], bool, bool, Optional[str]]:
+@dataclass
+class OptionData:
+    text: str
+    emoji: Optional[str]
+
+
+@dataclass
+class Command:
+    question: str
+    options: List[OptionData]
+    anonymous: bool
+    secret: bool
+
+
+def get_command_from_req(request: JSON, workspace: Workspace) -> Optional[Command]:
     try:
         fixed_quote_string = request.get("text", "").replace("“", '"').replace("”", '"')
         split = shlex.split(fixed_quote_string, posix=False)
@@ -281,26 +318,42 @@ def get_command_from_req(
             request.get("user_id", ""),
             f"We had trouble parsing that - {e}",
         )
-        return None, [], False, False, None
+        return None
 
-    if not [word for word in split if any(keyword in word for keyword in ANON_KEYWORDS)]:
+    if not [
+        word for word in split if any(keyword in word for keyword in ANON_KEYWORDS)
+    ]:
         anonymous = False
     else:
         anonymous = True
 
-    if not [word for word in split if any(keyword in word for keyword in SECRET_KEYWORDS)]:
+    if not [
+        word for word in split if any(keyword in word for keyword in SECRET_KEYWORDS)
+    ]:
         secret = False
     else:
         secret = True
         anonymous = True
 
-    anon_secret_opt = [word for word in split if any(keyword in word for keyword in ANON_KEYWORDS.union(SECRET_KEYWORDS))]
+    anon_secret_opt = [
+        word
+        for word in split
+        if any(keyword in word for keyword in ANON_KEYWORDS.union(SECRET_KEYWORDS))
+    ]
     anon_secret_emoji = None
-    if anon_secret_opt and "=" in anon_secret_opt[0] and is_slackmoji(anon_secret_opt[0].split("=")[1]):
+    if (
+        anon_secret_opt
+        and "=" in anon_secret_opt[0]
+        and is_slackmoji(anon_secret_opt[0].split("=")[1])
+    ):
         anon_secret_emoji = anon_secret_opt[0].split("=")[1]
 
     # Filter out the anonymous or secret options
-    split = [word for word in split if not any(keyword in word for keyword in ANON_KEYWORDS.union(SECRET_KEYWORDS))]
+    split = [
+        word
+        for word in split
+        if not any(keyword in word for keyword in ANON_KEYWORDS.union(SECRET_KEYWORDS))
+    ]
 
     if len(split) < 2:
         send_ephemeral_message(
@@ -310,7 +363,7 @@ def get_command_from_req(
             "Oops - a poll needs to have at least one option. "
             'Try again with `/votey "question" "option 1"`',
         )
-        return None, [], False, False, None
+        return None
     if len(split) > 11:
         send_ephemeral_message(
             workspace,
@@ -318,13 +371,13 @@ def get_command_from_req(
             request.get("user_id", ""),
             "Sorry - Votey only supports 10 options at the moment.",
         )
-        return None, [], False, False, None
+        return None
 
     poll_question = split.pop(0)
     if poll_question.startswith('"') and poll_question.endswith('"'):
         poll_question = poll_question[1:-1]
 
-    options: List[Tuple[str, Optional[str]]] = []
+    options = []
     while split:
         option = split.pop(0)
         if option.startswith('"') and option.endswith('"'):
@@ -334,16 +387,30 @@ def get_command_from_req(
         if split:
             maybe_emoji = split.pop(0)
             # If the next item in the list is not an emoji, put it back and set emoji to None
-            if(not is_slackmoji(maybe_emoji)):
+            if not is_slackmoji(maybe_emoji):
                 split.insert(0, maybe_emoji)
                 maybe_emoji = None
 
-        options.append((option, maybe_emoji))
-    return poll_question, options, anonymous, secret, anon_secret_emoji
+        options.append(
+            OptionData(
+                text=option,
+                emoji=maybe_emoji,
+            )
+        )
+    return Command(
+        question=poll_question,
+        options=options,
+        anonymous=anonymous,
+        secret=secret,
+        anon_secret_emoji=anon_secret_emoji,
+    )
 
 
 def send_ephemeral_message(
-    workspace: Workspace, channel: str, user: str, text: str,
+    workspace: Workspace,
+    channel: str,
+    user: str,
+    text: str,
 ) -> requests.Response:
     return requests.post(
         "https://slack.com/api/chat.postEphemeral",
