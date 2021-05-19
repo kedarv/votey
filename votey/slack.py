@@ -4,7 +4,6 @@ import json
 import shlex
 import time
 import uuid
-from dataclasses import dataclass
 from typing import Any
 from typing import List
 from typing import Optional
@@ -22,8 +21,10 @@ from .models import Vote
 from .models import Workspace
 from .utils import AnyJSON
 from .utils import batch
+from .utils import Command
 from .utils import get_footer
 from .utils import JSON
+from .utils import OptionData
 
 bp = Blueprint("slack", __name__)
 
@@ -291,21 +292,6 @@ def valid_request(request: Any) -> bool:
         ).hexdigest()
     )
     return hmac.compare_digest(request_hash, slack_signature)
-
-
-@dataclass
-class OptionData:
-    text: str
-    emoji: Optional[str]
-
-
-@dataclass
-class Command:
-    question: str
-    options: List[OptionData]
-    anonymous: bool
-    secret: bool
-    vote_emoji: Optional[str]
 
 
 def get_command_from_req(request: JSON, workspace: Workspace) -> Optional[Command]:

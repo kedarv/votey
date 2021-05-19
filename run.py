@@ -1,9 +1,12 @@
+from threading import Lock
+
 from votey import create_app
 from votey.exts import db
 
 app = create_app()
+lock = Lock()
 
-with app.app_context():
+with app.app_context(), lock:
     db.create_all()
 
 if __name__ == "__main__":
