@@ -21,6 +21,7 @@ prospector = {extras = ["with_bandit"], version = "*"}
 python-dotenv = "*"
 sqlalchemy-stubs = "*"
 pytest = "*"
+pytest-cov = "*"
 
 [packages]
 flask = "*"

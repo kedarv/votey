@@ -17,3 +17,5 @@ instance/
 cache.*
 *.csv
 .env
+
+.coverage
