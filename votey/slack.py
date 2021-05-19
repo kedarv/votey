@@ -67,6 +67,7 @@ def slack() -> Any:
 
 @bp.route("/oauth", methods=["GET"])
 def oauth() -> str:
+    current_app.logger.debug("beginning oauth handshake")
     code = request.args.get("code")
     client_id = current_app.config["CLIENT_ID"]
     client_secret = current_app.config["CLIENT_SECRET"]
@@ -89,15 +90,17 @@ def oauth() -> str:
             )
             db.session.add(workspace)
         db.session.commit()
+        current_app.logger.debug("oauth handshake successful")
         return f"thanks! votey has been installed to <b>{name}</b>. you can close this tab."
+    current_app.logger.error("oauth handshake failed")
     return "something went wrong :("
 
 
 def handle_poll_creation(req: JSON) -> Any:
-    current_app.logger.debug("creating poll with json {}".format(req))
+    current_app.logger.debug(f"creating poll with json {req}")
     workspace = Workspace.query.filter_by(team_id=req.get("team_id")).first()
     if workspace is None:
-        return ""
+        return "Something went wrong finding your workspace!"
     cmd = get_command_from_req(req, workspace)
     if cmd is None:
         return ""
@@ -172,9 +175,9 @@ def handle_poll_creation(req: JSON) -> Any:
             {"name": "delete", "text": "Delete", "type": "button", "style": "danger"}
         ],
     }
-    current_app.logger.debug("writing poll to channel {}".format(channel))
+    current_app.logger.debug(f"writing poll to channel {channel}")
     res = send_message(workspace, channel, attachments=attachments).json()
-    current_app.logger.debug("got poll creation response: {}".format(res))
+    current_app.logger.debug(f"got poll creation response: {res}")
     if "ts" in res:
         poll.ts = res["ts"]
         db.session.commit()
@@ -191,7 +194,7 @@ def handle_poll_creation(req: JSON) -> Any:
             "text": " ",
             "attachments": attachments,
         }
-        current_app.logger.debug("DIRECTLY returning {}".format(body))
+        current_app.logger.debug(f"DIRECTLY returning {body}")
         return jsonify(body)
     return ""
 
@@ -203,7 +206,7 @@ def handle_button_interaction(req: JSON) -> Any:
 
 
 def handle_vote(response: AnyJSON) -> Any:
-    current_app.logger.debug("handling vote with req {}".format(response))
+    current_app.logger.debug(f"handling vote with req {response}")
     poll = Poll.query.filter_by(identifier=response.get("callback_id")).first()
     option = Option.query.filter_by(id=response.get("actions", [])[0]["value"]).first()
     user = response.get("user", {}).get("id")

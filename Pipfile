@@ -9,6 +9,7 @@ install-hooks = "pre-commit install --install-hooks"
 lint = "./scripts/lint.sh"
 pre-commit = "pre-commit run --all-files"
 start = "python run.py"
+test = "pytest tests"
 
 [dev-packages]
 black = "*"
@@ -17,7 +18,9 @@ flask-sqlalchemy-stubs = {git = "https://github.com/ssfdust/flask-sqlalchemy-stu
 mypy = "*"
 pre-commit = "*"
 prospector = {extras = ["with_bandit"], version = "*"}
+python-dotenv = "*"
 sqlalchemy-stubs = "*"
+pytest = "*"
 
 [packages]
 flask = "*"

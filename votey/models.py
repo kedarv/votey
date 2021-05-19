@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 from .exts import db
@@ -51,7 +52,7 @@ class Poll(BaseModel):
     votes = db.relationship("Vote", backref="poll", lazy="select")
     ts = db.Column(db.Text, nullable=True)
     channel = db.Column(db.Text, nullable=False)
-    created_at = db.Column(db.DateTime, nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.now)
 
     def poll_identifier(self) -> str:
         return f"{self.identifier}"
