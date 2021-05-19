@@ -9,7 +9,7 @@ install-hooks = "pre-commit install --install-hooks"
 lint = "./scripts/lint.sh"
 pre-commit = "pre-commit run --all-files"
 start = "python run.py"
-test = "pytest tests"
+test = "pytest tests --cov=./"
 
 [dev-packages]
 black = "*"

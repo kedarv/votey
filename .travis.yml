@@ -3,8 +3,8 @@ python:
   - "3.8"
 install:
   - pip install pipenv
-  - pipenv install
+  - pipenv install --dev --skip-lock
 script:
-  - pytest --cov=./
+  - pipenv run test
 after_success:
   - bash <(curl -s https://codecov.io/bash)
