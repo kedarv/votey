@@ -5,6 +5,8 @@ install:
   - pip install pipenv
   - pipenv install --dev --skip-lock
 script:
+  - pipenv run pre-commit
+  - pipenv run lint
   - pipenv run test
 after_success:
   - bash <(curl -s https://codecov.io/bash)
