@@ -229,16 +229,18 @@ def handle_vote(response: AnyJSON) -> Any:
             db.session.add(vote)
         db.session.commit()
 
-        position = int(response.get("actions", [])[0]["name"])
+        options = Option.query.filter_by(poll_id=poll.id).order_by(Option.id).all()
 
-        votes = Vote.query.filter_by(option_id=option.id).all()
-        num = f"`{len(votes)}`"
-        field_text = (
-            f"{option.option_emoji or NUM_TO_SLACKMOJI[position+1]} {option.option_text}\t"
-            f'{num if votes else ""}\n'
-            f"{thumbs(votes, poll.vote_emoji) if poll.anonymous else names(votes)}\n\n"
-        )
-        attachments[0].get("fields")[position]["value"] = field_text
+        for option_index, poll_option in enumerate(options):
+            votes = Vote.query.filter_by(
+                option_id=poll_option.id,
+            ).all()
+            field_text = (
+                f"{poll_option.option_emoji or NUM_TO_SLACKMOJI[option_index+1]} {poll_option.option_text}\t"
+                f'{f"`{len(votes)}`" if votes else ""}\n'
+                f"{thumbs(votes, poll.vote_emoji) if poll.anonymous else names(votes)}\n\n"
+            )
+            attachments[0].get("fields")[option_index]["value"] = field_text
         return jsonify(original_message)
     return ""
 
