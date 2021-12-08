@@ -5,6 +5,7 @@ import shlex
 import time
 import uuid
 from typing import Any
+from typing import Dict
 from typing import List
 from typing import Optional
 
@@ -96,52 +97,33 @@ def oauth() -> str:
     return "something went wrong :("
 
 
-def handle_poll_creation(req: JSON) -> Any:
-    current_app.logger.debug(f"creating poll with json {req}")
-    workspace = Workspace.query.filter_by(team_id=req.get("team_id")).first()
-    if workspace is None:
-        return "Something went wrong finding your workspace!"
-    cmd = get_command_from_req(req, workspace)
-    if cmd is None:
-        return ""
-
-    channel = req.get("channel_id", "")
-
+def generate_poll_markup(poll_id: int) -> List[Dict[str, Any]]:
+    poll = Poll.query.filter_by(id=poll_id).first()
+    options = Option.query.filter_by(poll_id=poll_id)
     actions = []
     fields = []
-
-    poll = Poll(
-        identifier=uuid.uuid4(),
-        question=cmd.question,
-        channel=channel,
-        anonymous=cmd.anonymous,
-        secret=cmd.secret,
-        vote_emoji=cmd.vote_emoji,
-    )
-    db.session.add(poll)
-    db.session.commit()
-
-    for counter, option_data in enumerate(cmd.options):
-        option = Option(
-            poll_id=poll.id,
-            option_text=option_data.text,
-            option_emoji=option_data.emoji,
-        )
-        db.session.add(option)
-        db.session.commit()
-
+    for option_index, option in enumerate(options):
+        votes = Vote.query.filter_by(
+            option_id=option.id,
+        ).all()
         actions.append(
             {
-                "name": str(counter),
-                "text": option.option_emoji or NUM_TO_SLACKMOJI[counter + 1],
+                "name": str(option_index),
+                "text": option.option_emoji or NUM_TO_SLACKMOJI[option_index + 1],
                 "value": option.id,
                 "type": "button",
             }
         )
+        field_text = (
+            f"{option.option_emoji or NUM_TO_SLACKMOJI[option_index+1]} {option.option_text}\t"
+            f'{f"`{len(votes)}`" if votes else ""}\n'
+            f"{thumbs(votes, poll.vote_emoji) if poll.anonymous else names(votes)}\n\n"
+        )
+
         fields.append(
             {
                 "title": "",
-                "value": f"{option.option_emoji or NUM_TO_SLACKMOJI[counter + 1]} {option.option_text}\n\n\n",
+                "value": field_text,
                 "short": False,
                 "mrkdwn": "true",
             }
@@ -149,11 +131,11 @@ def handle_poll_creation(req: JSON) -> Any:
 
     attachments = [
         {
-            "text": cmd.question,
+            "text": poll.question,
             "mrkdwn_in": ["fields"],
             "color": "#6ecadc",
             "fields": fields,
-            "footer": get_footer(req.get("user_id", ""), cmd.anonymous, cmd.secret),
+            "footer": get_footer(poll.author, poll.anonymous, poll.secret),
             "ts": time.time(),
         },
     ]
@@ -167,6 +149,42 @@ def handle_poll_creation(req: JSON) -> Any:
                 "actions": batched,
             }
         )
+    return attachments
+
+
+def handle_poll_creation(req: JSON) -> Any:
+    current_app.logger.debug(f"creating poll with json {req}")
+    workspace = Workspace.query.filter_by(team_id=req.get("team_id")).first()
+    if workspace is None:
+        return "Something went wrong finding your workspace!"
+    cmd = get_command_from_req(req, workspace)
+    if cmd is None:
+        return ""
+
+    channel = req.get("channel_id", "")
+
+    poll = Poll(
+        identifier=uuid.uuid4(),
+        question=cmd.question,
+        channel=channel,
+        anonymous=cmd.anonymous,
+        secret=cmd.secret,
+        vote_emoji=cmd.vote_emoji,
+        author=req.get("user_id") if not cmd.secret else None,
+    )
+    db.session.add(poll)
+    db.session.commit()
+
+    for option_data in cmd.options:
+        option = Option(
+            poll_id=poll.id,
+            option_text=option_data.text,
+            option_emoji=option_data.emoji,
+        )
+        db.session.add(option)
+        db.session.commit()
+
+    attachments = generate_poll_markup(poll_id=poll.id)
 
     delete_attachment = {
         "text": " ",
@@ -210,8 +228,6 @@ def handle_vote(response: AnyJSON) -> Any:
     poll = Poll.query.filter_by(identifier=response.get("callback_id")).first()
     option = Option.query.filter_by(id=response.get("actions", [])[0]["value"]).first()
     user = response.get("user", {}).get("id")
-    original_message = response.get("original_message", {})
-    attachments = original_message.get("attachments")
 
     if poll is not None and option is not None:
         vote = Vote.query.filter_by(
@@ -229,19 +245,10 @@ def handle_vote(response: AnyJSON) -> Any:
             db.session.add(vote)
         db.session.commit()
 
-        options = Option.query.filter_by(poll_id=poll.id).order_by(Option.id).all()
-
-        for option_index, poll_option in enumerate(options):
-            votes = Vote.query.filter_by(
-                option_id=poll_option.id,
-            ).all()
-            field_text = (
-                f"{poll_option.option_emoji or NUM_TO_SLACKMOJI[option_index+1]} {poll_option.option_text}\t"
-                f'{f"`{len(votes)}`" if votes else ""}\n'
-                f"{thumbs(votes, poll.vote_emoji) if poll.anonymous else names(votes)}\n\n"
-            )
-            attachments[0].get("fields")[option_index]["value"] = field_text
-        return jsonify(original_message)
+        # Slack API kind of sucks
+        # Return a dictionary with the attachments key to update a message
+        # Is this even documented anywhere anymore?
+        return jsonify({"attachments": generate_poll_markup(poll_id=poll.id)})
     return ""
 
 
@@ -422,6 +429,7 @@ def send_message(
         body["text"] = text
     if attachments is not None:
         body["attachments"] = attachments
+
     return requests.post(
         "https://slack.com/api/chat.postMessage",
         json=body,

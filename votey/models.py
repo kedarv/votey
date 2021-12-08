@@ -48,6 +48,7 @@ class Poll(BaseModel):
     anonymous = db.Column(db.Boolean, nullable=False, default=False)
     secret = db.Column(db.Boolean, nullable=False, default=False)
     vote_emoji = db.Column(db.Text, nullable=True)
+    author = db.Column(db.Text, nullable=True)
     options = db.relationship("Option", backref="poll", lazy="select")
     votes = db.relationship("Vote", backref="poll", lazy="select")
     ts = db.Column(db.Text, nullable=True)
