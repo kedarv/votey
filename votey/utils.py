@@ -35,7 +35,7 @@ def batch(lst: List[T], n: int = 1) -> Iterable[List[T]]:
         yield lst[ndx : min(ndx + n, ln)]
 
 
-def get_footer(user_id: str, anonymous: bool, secret: bool) -> str:
+def get_footer(user_id: Optional[str], anonymous: bool, secret: bool) -> str:
     if secret:
         return "Poll creator and votes are hidden."
     if anonymous:
