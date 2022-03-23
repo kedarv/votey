@@ -24,6 +24,7 @@ def create_app(config: Optional[Dict[str, Any]] = None) -> Flask:
         CLIENT_ID=os.getenv("CLIENT_ID"),
         CLIENT_SECRET=os.getenv("CLIENT_SECRET"),
         SIGNING_SECRET=os.getenv("SIGNING_SECRET"),
+        REDIRECT_URI=os.getenv("REDIRECT_URI"),
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
     )
     if config:
