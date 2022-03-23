@@ -72,14 +72,15 @@ def oauth() -> str:
     code = request.args.get("code")
     client_id = current_app.config["CLIENT_ID"]
     client_secret = current_app.config["CLIENT_SECRET"]
-    oauth = requests.get(
-        "https://slack.com/api/oauth.access",
-        params={"code": code, "client_id": client_id, "client_secret": client_secret},
+    redirect_uri = current_app.config["REDIRECT_URI"]
+    oauth = requests.post(
+        "https://slack.com/api/oauth.v2.access",
+        params={"code": code, "client_id": client_id, "client_secret": client_secret, "redirect_uri": redirect_uri, "grant_type":"authorization_code"},
     )
     if oauth.json().get("ok"):
-        team_id = oauth.json().get("team_id")
+        team_id = oauth.json().get("team").get("id")
         token = oauth.json().get("access_token")
-        name = oauth.json().get("team_name")
+        name = oauth.json()..get("team").get("name")
         workspace = Workspace.query.filter_by(team_id=team_id).first()
         if workspace is not None:
             workspace.token = token
