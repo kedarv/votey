@@ -80,7 +80,7 @@ def oauth() -> str:
     if oauth.json().get("ok"):
         team_id = oauth.json().get("team").get("id")
         token = oauth.json().get("access_token")
-        name = oauth.json()..get("team").get("name")
+        name = oauth.json().get("team").get("name")
         workspace = Workspace.query.filter_by(team_id=team_id).first()
         if workspace is not None:
             workspace.token = token
