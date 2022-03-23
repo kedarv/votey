@@ -94,7 +94,7 @@ def oauth() -> str:
         current_app.logger.debug("oauth handshake successful")
         return f"thanks! votey has been installed to <b>{name}</b>. you can close this tab."
     current_app.logger.error("oauth handshake failed")
-    return "something went wrong :("
+    return oauth.text
 
 
 def generate_poll_markup(poll_id: int) -> List[Dict[str, Any]]:
