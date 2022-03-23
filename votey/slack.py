@@ -361,7 +361,7 @@ def get_command_from_req(request: JSON, workspace: Workspace) -> Optional[Comman
             request.get("channel_id", ""),
             request.get("user_id", ""),
             "Oops - a poll needs to have at least one option. "
-            'Try again with `/votey "question" "option 1"`',
+            'Try again with `/poll "question" "option 1"`',
         )
         return None
     if len(split) > 11:
@@ -369,7 +369,7 @@ def get_command_from_req(request: JSON, workspace: Workspace) -> Optional[Comman
             workspace,
             request.get("channel_id", ""),
             request.get("user_id", ""),
-            "Sorry - Votey only supports 10 options at the moment.",
+            "Sorry - Polls only supports 10 options at the moment.",
         )
         return None
 
