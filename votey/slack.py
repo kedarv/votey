@@ -235,7 +235,7 @@ def handle_vote(response: AnyJSON) -> Any:
         ).first()
 
         if vote:
-            db.session.delete(vote)  # type: ignore
+            db.session.delete(vote)
         else:
             vote = Vote(
                 poll_id=poll.id,
@@ -262,7 +262,7 @@ def handle_poll_deletion(response: AnyJSON) -> str:
     Vote.query.filter_by(poll_id=poll.id).delete()
     Option.query.filter_by(poll_id=poll.id).delete()
 
-    db.session.delete(poll)  # type: ignore
+    db.session.delete(poll)
     db.session.commit()
 
     requests.post(
