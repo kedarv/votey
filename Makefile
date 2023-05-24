@@ -1,7 +1,3 @@
-.PHONY: format
-format:
-	black votey
-
 .PHONY: install-hooks
 install-hooks:
 	pre-commit install --install-hooks
