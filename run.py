@@ -2,7 +2,9 @@ from threading import Lock
 
 from votey import create_app
 from votey.exts import db
+from dotenv import load_dotenv
 
+load_dotenv('.env')
 app = create_app()
 lock = Lock()
 

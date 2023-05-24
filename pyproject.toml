@@ -1,0 +1,30 @@
+[tool.poetry]
+name = "votey"
+version = "0.1.0"
+description = ""
+authors = ["kedarv <1365665+kedarv@users.noreply.github.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.8"
+flask = "*"
+flask-sqlalchemy = "*"
+gunicorn = "*"
+psycopg2-binary = "*"
+requests = "*"
+sqlalchemy = "*"
+
+
+[tool.poetry.group.dev.dependencies]
+black = "*"
+flake8 = "<3.9"
+mypy = "*"
+pre-commit = "*"
+prospector = {extras = ["with_bandit"], version = "*"}
+python-dotenv = "*"
+pytest = "*"
+pytest-cov = "*"
+types-flask-sqlalchemy = "^2.5.9.4"
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
