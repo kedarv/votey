@@ -6,8 +6,6 @@ a simple slack polling slash command - because paying for polls is kind of stupi
 
 ## Deploying for Production
 
-[![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy)
-
 1. Click the Deploy button above, and then create a [new Slack app](https://api.slack.com/apps) and scroll down to the **App Credentials** Panel.
 1. Once the application has deployed on Heroku, head to the **Settings** tab, and scroll down to the `Config Vars` section. We'll need to fill out some variables that are generated upon creating a Slack App:
     - `CLIENT_ID` - _Client ID_ of your Slack App
@@ -31,7 +29,7 @@ Once OAuth has successfully completed, you're ready to start using Votey!
 
 ## Development
 ### Installation
-Votey runs on Python 3.8, so you'll need to make sure your environment has Python 3.8 and [Pipenv](https://pipenv.readthedocs.io/en/latest/) installed.
+Votey runs on Python 3.10, so you'll need to make sure your environment has Python 3.10 and [Poetry](https://python-poetry.org/) installed.
 
 Run the following in the source directory:
 
