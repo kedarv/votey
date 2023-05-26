@@ -457,7 +457,7 @@ def get_command_from_req(request: JSON, workspace: Workspace) -> Optional[Comman
             "Whoops, your desired vote limit is larger than the number of options you provided.",
         )
         return None
-    
+
     if len(options) > 10:
         send_ephemeral_message(
             workspace,
