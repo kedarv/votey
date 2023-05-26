@@ -1,5 +1,4 @@
 from votey.utils import get_footer
-import pytest
 
 def test_default_footer():
     assert "Poll created by <@userid> with /votey" == get_footer("userid", False, False, None)
