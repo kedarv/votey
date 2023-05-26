@@ -54,6 +54,7 @@ class Poll(BaseModel):
     ts = db.Column(db.Text, nullable=True)
     channel = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.now)
+    vote_limit = db.Column(db.Integer, nullable=False)
 
     def poll_identifier(self) -> str:
         return f"{self.identifier}"

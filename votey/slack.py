@@ -54,6 +54,11 @@ SECRET_KEYWORDS = {
     "-secret",
 }
 
+LIMIT_KEYWORDS = {
+    "--limit",
+    "-limit",
+}
+
 
 @bp.route("/slack", methods=["POST"])
 def slack() -> Any:
@@ -135,7 +140,9 @@ def generate_poll_markup(poll_id: int) -> List[Dict[str, Any]]:
             "mrkdwn_in": ["fields"],
             "color": "#6ecadc",
             "fields": fields,
-            "footer": get_footer(poll.author, poll.anonymous, poll.secret),
+            "footer": get_footer(
+                poll.author, poll.anonymous, poll.secret, poll.vote_limit
+            ),
             "ts": time.time(),
         },
     ]
@@ -171,6 +178,7 @@ def handle_poll_creation(req: JSON) -> Any:
         secret=cmd.secret,
         vote_emoji=cmd.vote_emoji,
         author=req.get("user_id") if not cmd.secret else None,
+        vote_limit=cmd.vote_limit,
     )
     db.session.add(poll)
     db.session.commit()
@@ -228,6 +236,9 @@ def handle_vote(response: AnyJSON) -> Any:
     poll = Poll.query.filter_by(identifier=response.get("callback_id")).first()
     option = Option.query.filter_by(id=response.get("actions", [])[0]["value"]).first()
     user = response.get("user", {}).get("id")
+    workspace = Workspace.query.filter_by(
+        team_id=response.get("team", {}).get("id")
+    ).first()
 
     if poll is not None and option is not None:
         vote = Vote.query.filter_by(
@@ -237,6 +248,21 @@ def handle_vote(response: AnyJSON) -> Any:
         if vote:
             db.session.delete(vote)
         else:
+            user_votes_for_poll = Vote.query.filter_by(
+                poll_id=poll.id, user=user
+            ).count()
+            if (
+                poll.vote_limit is not None
+                and user_votes_for_poll + 1 > poll.vote_limit
+            ):
+                send_ephemeral_message(
+                    workspace,
+                    response["channel"]["id"],
+                    response["user"]["id"],
+                    f"This poll is limited to {poll.vote_limit} option{'s' if poll.vote_limit > 1 else ''}, please remove an existing vote before casting a new vote.",
+                )
+                return jsonify({"attachments": generate_poll_markup(poll_id=poll.id)})
+
             vote = Vote(
                 poll_id=poll.id,
                 option_id=option.id,
@@ -339,6 +365,11 @@ def get_command_from_req(request: JSON, workspace: Workspace) -> Optional[Comman
         for word in split
         if any(keyword in word for keyword in ANON_KEYWORDS.union(SECRET_KEYWORDS))
     ]
+
+    limit_opt = [
+        word for word in split if any(keyword in word for keyword in LIMIT_KEYWORDS)
+    ]
+
     vote_emoji = None
     if (
         anon_secret_opt
@@ -347,11 +378,40 @@ def get_command_from_req(request: JSON, workspace: Workspace) -> Optional[Comman
     ):
         vote_emoji = anon_secret_opt[0].split("=")[1]
 
+    vote_limit = None
+    if limit_opt:
+        if "=" in limit_opt[0]:
+            try:
+                vote_limit = int(limit_opt[0].split("=")[1])
+                if vote_limit < 1:
+                    raise
+            except Exception:
+                send_ephemeral_message(
+                    workspace,
+                    request.get("channel_id", ""),
+                    request.get("user_id", ""),
+                    "Oops - you must specify a numeric value when using `--limit`"
+                    'Try again with `/votey "question" "option 1" --limit=1`',
+                )
+                return None
+        else:
+            send_ephemeral_message(
+                workspace,
+                request.get("channel_id", ""),
+                request.get("user_id", ""),
+                "Oops - you must specify a value when using `--limit`"
+                'Try again with `/votey "question" "option 1" --limit=1`',
+            )
+            return None
+
     # Filter out the anonymous or secret options
     split = [
         word
         for word in split
-        if not any(keyword in word for keyword in ANON_KEYWORDS.union(SECRET_KEYWORDS))
+        if not any(
+            keyword in word
+            for keyword in ANON_KEYWORDS.union(SECRET_KEYWORDS).union(LIMIT_KEYWORDS)
+        )
     ]
 
     if len(split) < 2:
@@ -396,12 +456,23 @@ def get_command_from_req(request: JSON, workspace: Workspace) -> Optional[Comman
                 emoji=maybe_emoji,
             )
         )
+
+    if vote_limit and vote_limit > len(options):
+        send_ephemeral_message(
+            workspace,
+            request.get("channel_id", ""),
+            request.get("user_id", ""),
+            "Whoops, your desired vote limit is larger than the number of options you provided.",
+        )
+        return None
+
     return Command(
         question=poll_question,
         options=options,
         anonymous=anonymous,
         secret=secret,
         vote_emoji=vote_emoji,
+        vote_limit=vote_limit,
     )
 
 

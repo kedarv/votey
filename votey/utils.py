@@ -27,6 +27,7 @@ class Command:
     anonymous: bool
     secret: bool
     vote_emoji: Optional[str]
+    vote_limit: Optional[int]
 
 
 def batch(lst: List[T], n: int = 1) -> Iterable[List[T]]:
@@ -35,13 +36,18 @@ def batch(lst: List[T], n: int = 1) -> Iterable[List[T]]:
         yield lst[ndx : min(ndx + n, ln)]
 
 
-def get_footer(user_id: Optional[str], anonymous: bool, secret: bool) -> str:
+def get_footer(
+    user_id: Optional[str], anonymous: bool, secret: bool, vote_limit: Optional[int]
+) -> str:
+    limit_str = ""
+    if vote_limit:
+        limit_str = f". (Pick up to {vote_limit} option{'s' if vote_limit > 1 else ''})"
     if secret:
-        return "Poll creator and votes are hidden."
+        return f"Poll creator and votes are hidden{limit_str}"
     if anonymous:
-        return f"Anonymous poll created by <@{user_id}> with /votey"
+        return f"Anonymous poll created by <@{user_id}> with /votey{limit_str}"
 
-    return f"Poll created by <@{user_id}> with /votey"
+    return f"Poll created by <@{user_id}> with /votey{limit_str}"
 
 
 def rewrite_pg_url(database_url: str) -> str:
