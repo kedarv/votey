@@ -236,6 +236,9 @@ def handle_vote(response: AnyJSON) -> Any:
     poll = Poll.query.filter_by(identifier=response.get("callback_id")).first()
     option = Option.query.filter_by(id=response.get("actions", [])[0]["value"]).first()
     user = response.get("user", {}).get("id")
+    workspace = Workspace.query.filter_by(
+        team_id=response.get("team", {}).get("id")
+    ).first()
 
     if poll is not None and option is not None:
         vote = Vote.query.filter_by(
@@ -247,11 +250,19 @@ def handle_vote(response: AnyJSON) -> Any:
         else:
             user_votes_for_poll = Vote.query.filter_by(
                 poll_id=poll.id, user=user
-            )
-            if(poll.vote_limit and len(user_votes_for_poll) > poll.vote_limit):
-                # TODO: ephemeral?
+            ).count()
+            if (
+                poll.vote_limit is not None
+                and user_votes_for_poll + 1 > poll.vote_limit
+            ):
+                send_ephemeral_message(
+                    workspace,
+                    response["channel"]["id"],
+                    response["user"]["id"],
+                    f"This poll is limited to {poll.vote_limit} option{'s' if poll.vote_limit > 1 else ''}, please remove an existing vote before casting a new vote.",
+                )
                 return jsonify({"attachments": generate_poll_markup(poll_id=poll.id)})
-            
+
             vote = Vote(
                 poll_id=poll.id,
                 option_id=option.id,
