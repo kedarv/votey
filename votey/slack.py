@@ -423,14 +423,6 @@ def get_command_from_req(request: JSON, workspace: Workspace) -> Optional[Comman
             'Try again with `/votey "question" "option 1"`',
         )
         return None
-    if len(split) > 11:
-        send_ephemeral_message(
-            workspace,
-            request.get("channel_id", ""),
-            request.get("user_id", ""),
-            "Sorry - Votey only supports 10 options at the moment.",
-        )
-        return None
 
     poll_question = split.pop(0)
     if poll_question.startswith('"') and poll_question.endswith('"'):
@@ -463,6 +455,15 @@ def get_command_from_req(request: JSON, workspace: Workspace) -> Optional[Comman
             request.get("channel_id", ""),
             request.get("user_id", ""),
             "Whoops, your desired vote limit is larger than the number of options you provided.",
+        )
+        return None
+
+    if len(options) > 10:
+        send_ephemeral_message(
+            workspace,
+            request.get("channel_id", ""),
+            request.get("user_id", ""),
+            "Sorry - Votey only supports 10 options at the moment.",
         )
         return None
 
