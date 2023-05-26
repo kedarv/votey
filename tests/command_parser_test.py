@@ -170,3 +170,62 @@ def test_secret_with_voting_emoji():
     assert cmd.anonymous
     assert cmd.secret
     assert cmd.vote_emoji == ":soccer:"
+
+
+def test_limit():
+    cmd = get_command_from_req(
+        {
+            "text": f'"{QUESTION}" "{FIRST_OPTION}" :some-emoji: "{SECOND_OPTION}" --secret=:soccer: --limit=1'
+        },
+        MagicMock(),
+    )
+    assert cmd is not None
+    assert cmd.question == QUESTION
+    assert cmd.options == [
+        OptionData(FIRST_OPTION, ":some-emoji:"),
+        OptionData(SECOND_OPTION, None),
+    ]
+    assert cmd.anonymous
+    assert cmd.secret
+    assert cmd.vote_emoji == ":soccer:"
+    assert cmd.vote_limit == 1
+
+
+def test_limit_larger_than_option_count():
+    cmd = get_command_from_req(
+        {
+            "text": f'"{QUESTION}" "{FIRST_OPTION}" :some-emoji: "{SECOND_OPTION}" --secret=:soccer: --limit=3'
+        },
+        MagicMock(),
+    )
+    assert cmd is None
+
+
+def test_limit_non_numeric():
+    cmd = get_command_from_req(
+        {
+            "text": f'"{QUESTION}" "{FIRST_OPTION}" :some-emoji: "{SECOND_OPTION}" --secret=:soccer: --limit=a'
+        },
+        MagicMock(),
+    )
+    assert cmd is None
+
+
+def test_limit_negative():
+    cmd = get_command_from_req(
+        {
+            "text": f'"{QUESTION}" "{FIRST_OPTION}" :some-emoji: "{SECOND_OPTION}" --secret=:soccer: --limit=-1'
+        },
+        MagicMock(),
+    )
+    assert cmd is None
+
+
+def test_limit_zero():
+    cmd = get_command_from_req(
+        {
+            "text": f'"{QUESTION}" "{FIRST_OPTION}" :some-emoji: "{SECOND_OPTION}" --secret=:soccer: --limit=0'
+        },
+        MagicMock(),
+    )
+    assert cmd is None
