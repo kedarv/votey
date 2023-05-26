@@ -2,7 +2,24 @@
 
 a simple slack polling slash command - because paying for polls is kind of stupid
 
-![Votey Screenshot](https://user-images.githubusercontent.com/1365665/87252413-a9d07100-c427-11ea-9cc0-751902c99062.png)
+<img src="https://user-images.githubusercontent.com/1365665/87252413-a9d07100-c427-11ea-9cc0-751902c99062.png" width="400px"/>
+
+## User Guide
+Votey is a surprisingly complex application because it has a variety of options that can allow you to customize how your poll looks and behaves. A Votey poll is composed of three components, a poll title, options, and voters. The first quoted string after the `/votey` command is used as the poll title, and following text is used to form "options" (ie. items that can be voted upon) and poll configuration options.
+
+Simple poll example:
+
+`/votey "some title" "some option A" "some option B"`
+
+Votey allows you to define "emoji vote icons" for each option. To enable this for a vote option, prepend the emoji you'd like to use:
+
+`/votey "some title" :thumbsup: "yes" :thumbsdown: "no"`
+
+To hide the names of voters, append `--anonymous` at the end of your poll creation text. To use an emoji other than the default `:thumbsup:` icon, use `--anonymous=:emojiName:`.
+
+To hide the name of the poll creator, append `--secret` at the end of your poll creation text.
+
+To limit the number of votes per poll, append `--limit=N` at the end of your poll creation text. Note that `N` must be equal to lesser than the number of vote options provided.
 
 ## Deploying for Production
 
