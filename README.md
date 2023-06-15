@@ -17,7 +17,7 @@ Votey allows you to define "emoji vote icons" for each option. To enable this fo
 
 To hide the names of voters, append `--anonymous` at the end of your poll creation text. To use an emoji other than the default `:thumbsup:` icon, use `--anonymous=:emojiName:`.
 
-To hide the name of the poll creator, append `--secret` at the end of your poll creation text.
+To hide the name of the poll creator _and_ names of voters, append `--secret` at the end of your poll creation text.
 
 To limit the number of votes per poll, append `--limit=N` at the end of your poll creation text. Note that `N` must be equal to lesser than the number of vote options provided.
 
