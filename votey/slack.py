@@ -65,9 +65,7 @@ def slack() -> Any:
     return (
         handle_button_interaction(request.form)
         if valid_request(request) and request.form.get("payload")
-        else handle_poll_creation(request.form)
-        if valid_request(request)
-        else ""
+        else handle_poll_creation(request.form) if valid_request(request) else ""
     )
 
 
