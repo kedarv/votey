@@ -65,9 +65,7 @@ def slack() -> Any:
     return (
         handle_button_interaction(request.form)
         if valid_request(request) and request.form.get("payload")
-        else handle_poll_creation(request.form)
-        if valid_request(request)
-        else ""
+        else handle_poll_creation(request.form) if valid_request(request) else ""
     )
 
 
@@ -120,7 +118,7 @@ def generate_poll_markup(poll_id: int) -> List[Dict[str, Any]]:
             }
         )
         field_text = (
-            f"{option.option_emoji or NUM_TO_SLACKMOJI[option_index+1]} {option.option_text}\t"
+            f"{option.option_emoji or NUM_TO_SLACKMOJI[option_index + 1]} {option.option_text}\t"
             f'{f"`{len(votes)}`" if votes else ""}\n'
             f"{thumbs(votes, poll.vote_emoji) if poll.anonymous else names(votes)}\n\n"
         )
