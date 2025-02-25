@@ -1,4 +1,4 @@
-FROM python:3.10.11-alpine
+FROM python:3.12-slim
 
 # Configure Poetry
 ENV POETRY_VERSION=1.5.0
