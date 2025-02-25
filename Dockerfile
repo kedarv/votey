@@ -1,33 +1,36 @@
+# Use the latest stable Python 3 image (Debian-based)
 FROM python:3.12-slim
 
-# Configure Poetry
-ENV POETRY_VERSION=1.5.0
-ENV POETRY_HOME=/opt/poetry
-ENV POETRY_VENV=/opt/poetry-venv
-ENV POETRY_CACHE_DIR=/opt/.cache
+# Set environment variables for Poetry
+ENV POETRY_VERSION=1.8.2 \
+    POETRY_HOME=/opt/poetry \
+    POETRY_CACHE_DIR=/opt/.cache \
+    PATH="/opt/poetry/bin:$PATH"
 
-RUN apk add --update --no-cache --virtual .tmp-build-deps \
-    gcc libc-dev linux-headers postgresql-dev \
-    && apk add libffi-dev
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install poetry separated from system interpreter
-RUN python3 -m venv $POETRY_VENV \
-	&& $POETRY_VENV/bin/pip install -U pip setuptools \
-	&& $POETRY_VENV/bin/pip install poetry==${POETRY_VERSION}
+# Install Poetry
+RUN pip install --no-cache-dir "poetry==$POETRY_VERSION"
 
-# Add `poetry` to PATH
-ENV PATH="${PATH}:${POETRY_VENV}/bin"
-
+# Set working directory
 WORKDIR /app
 
+# Copy dependency files first for better caching
+COPY pyproject.toml poetry.lock ./
+
 # Install dependencies
-COPY poetry.lock pyproject.toml ./
-RUN poetry install
+RUN poetry install --no-root --no-interaction --no-ansi
 
-# Run your app
-COPY . /app
+# Copy application code
+COPY . .
 
+# Expose the application port
 EXPOSE 8000
-ENV PORT 8000
+ENV PORT=8000
 
-CMD [ "poetry", "run", "gunicorn", "run:app" ]
+# Run the application
+CMD ["poetry", "run", "gunicorn", "run:app"]
