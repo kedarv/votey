@@ -1,4 +1,3 @@
-# Use the latest stable Python 3 image (Debian-based)
 FROM python:3.12-slim
 
 # Set environment variables for Poetry
