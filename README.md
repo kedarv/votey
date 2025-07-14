@@ -46,7 +46,7 @@ Once OAuth has successfully completed, you're ready to start using Votey!
 
 ## Development
 ### Installation
-Votey runs on Python 3.10, so you'll need to make sure your environment has Python 3.10 and [Poetry](https://python-poetry.org/) installed.
+Votey runs on Python 3.12, so you'll need to make sure your environment has Python 3.12 and [Poetry](https://python-poetry.org/) installed.
 
 Run the following in the source directory:
 
