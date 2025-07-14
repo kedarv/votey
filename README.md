@@ -58,7 +58,7 @@ cp .env.example .env
 Modify your `.env` file to look something like this:
 
 ```
-SQLALCHEMY_DATABASE_URI='postgres://some_postgres_connection_string'
+DATABASE_URL='postgres://some_postgres_connection_string'
 CLIENT_ID='slack_client_id'
 CLIENT_SECRET='slack_client_secret'
 SIGNING_SECRET='slack_signing_secret'
