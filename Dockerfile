@@ -1,7 +1,7 @@
 FROM python:3.12-slim
 
 # Set environment variables for Poetry
-ENV POETRY_VERSION=1.8.2 \
+ENV POETRY_VERSION=2.1.3 \
     POETRY_HOME=/opt/poetry \
     POETRY_CACHE_DIR=/opt/.cache \
     PATH="/opt/poetry/bin:$PATH"
