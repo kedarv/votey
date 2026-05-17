@@ -6,17 +6,15 @@ from .exts import db
 if TYPE_CHECKING:
     import uuid
 
-    from flask_sqlalchemy.model import Model
     from sqlalchemy.types import TypeEngine
 
-    BaseModel = db.make_declarative_base(Model)
-    UUID = TypeEngine[uuid.UUID]  # pylint: disable=unsubscriptable-object
-
+    UuidType = TypeEngine[uuid.UUID]  # type: ignore[type-arg]
 else:
-    import sqlalchemy.dialects.postgresql
+    from sqlalchemy import Uuid  # type: ignore[attr-defined]
 
-    BaseModel = db.Model
-    UUID = sqlalchemy.dialects.postgresql.UUID(as_uuid=True)
+    UuidType = Uuid(as_uuid=True)
+
+BaseModel = db.Model
 
 
 class Workspace(BaseModel):
@@ -43,18 +41,21 @@ class Option(BaseModel):
 
 class Poll(BaseModel):
     id = db.Column(db.Integer, primary_key=True)
-    identifier = db.Column(UUID, unique=True, nullable=False)
+    identifier = db.Column(UuidType, unique=True, nullable=False)
     question = db.Column(db.Text, nullable=False)
     anonymous = db.Column(db.Boolean, nullable=False, default=False)
     secret = db.Column(db.Boolean, nullable=False, default=False)
     vote_emoji = db.Column(db.Text, nullable=True)
     author = db.Column(db.Text, nullable=True)
-    options = db.relationship("Option", backref="poll", lazy="select")
+    options = db.relationship(
+        "Option", backref="poll", lazy="select", order_by="Option.id"
+    )
     votes = db.relationship("Vote", backref="poll", lazy="select")
     ts = db.Column(db.Text, nullable=True)
     channel = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.now)
-    vote_limit = db.Column(db.Integer, nullable=False)
+    vote_limit = db.Column(db.Integer, nullable=True)
 
-    def poll_identifier(self) -> str:
-        return f"{self.identifier}"
+    @property
+    def callback_id(self) -> str:
+        return str(self.identifier)

@@ -1,6 +1,6 @@
 .PHONY: install-hooks
 install-hooks:
-	pre-commit install --install-hooks
+	uv run pre-commit install --install-hooks
 
 .PHONY: lint
 lint:
@@ -8,12 +8,17 @@ lint:
 
 .PHONY: pre-commit
 pre-commit:
-	pre-commit run --all-files
+	uv run pre-commit run --all-files
 
 .PHONY: start
 start:
-	python run.py
+	uv run python run.py
+
+.PHONY: format
+format:
+	uv run ruff format .
+	uv run ruff check --fix .
 
 .PHONY: test
 test:
-	pytest tests --cov=./
+	uv run pytest
