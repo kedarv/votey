@@ -41,5 +41,5 @@ def create_app(config: dict[str, Any] | None = None) -> Flask:
 
 
 def register_extensions(app: Flask) -> None:
-    db.init_app(app)
+    db.init_app(app)  # type: ignore[no-untyped-call]
     app.register_blueprint(slack.bp)

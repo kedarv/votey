@@ -25,3 +25,4 @@ cache.*
 .env
 
 .coverage
+.ruff_cache/

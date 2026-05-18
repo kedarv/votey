@@ -1,37 +1,29 @@
 from datetime import datetime
-from typing import TYPE_CHECKING
+
+from sqlalchemy import Uuid  # type: ignore[attr-defined]
 
 from .exts import db
 
-if TYPE_CHECKING:
-    import uuid
 
-    from sqlalchemy.types import TypeEngine
-
-    UuidType = TypeEngine[uuid.UUID]  # type: ignore[type-arg]
-else:
-    from sqlalchemy import Uuid  # type: ignore[attr-defined]
-
-    UuidType = Uuid(as_uuid=True)
-
-BaseModel = db.Model
+class _ModelBase(db.Model):  # type: ignore[misc,name-defined]
+    __abstract__ = True
 
 
-class Workspace(BaseModel):
+class Workspace(_ModelBase):
     id = db.Column(db.Integer, primary_key=True)
     team_id = db.Column(db.Text, nullable=False)
     name = db.Column(db.Text, nullable=False)
     token = db.Column(db.Text, nullable=False)
 
 
-class Vote(BaseModel):
+class Vote(_ModelBase):
     id = db.Column(db.Integer, primary_key=True)
     poll_id = db.Column(db.Integer, db.ForeignKey("poll.id"), nullable=False)
     option_id = db.Column(db.Integer, db.ForeignKey("option.id"), nullable=False)
     user = db.Column(db.Text, nullable=False)
 
 
-class Option(BaseModel):
+class Option(_ModelBase):
     id = db.Column(db.Integer, primary_key=True)
     poll_id = db.Column(db.Integer, db.ForeignKey("poll.id"), nullable=False)
     option_text = db.Column(db.Text, nullable=False)
@@ -39,9 +31,9 @@ class Option(BaseModel):
     votes = db.relationship("Vote", backref="option", lazy="select")
 
 
-class Poll(BaseModel):
+class Poll(_ModelBase):
     id = db.Column(db.Integer, primary_key=True)
-    identifier = db.Column(UuidType, unique=True, nullable=False)
+    identifier = db.Column(Uuid(as_uuid=True), unique=True, nullable=False)
     question = db.Column(db.Text, nullable=False)
     anonymous = db.Column(db.Boolean, nullable=False, default=False)
     secret = db.Column(db.Boolean, nullable=False, default=False)
