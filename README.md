@@ -46,12 +46,12 @@ Once OAuth has successfully completed, you're ready to start using Votey!
 
 ## Development
 ### Installation
-Votey runs on Python 3.12, so you'll need to make sure your environment has Python 3.12 and [Poetry](https://python-poetry.org/) installed.
+Votey runs on Python 3.14. Install [uv](https://docs.astral.sh/uv/)
 
 Run the following in the source directory:
 
 ```bash
-poetry install
+uv sync --all-groups
 cp .env.example .env
 ```
 

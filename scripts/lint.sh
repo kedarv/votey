@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 
-# make bash handle errors more sensibly
 set -euxo pipefail
 
-mypy votey
-prospector -A -w bandit
-pipenv check
+uv run ruff check .
+uv run ruff format --check .
+uv run mypy votey

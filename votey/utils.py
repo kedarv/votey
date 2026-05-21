@@ -1,55 +1,51 @@
 from dataclasses import dataclass
 from typing import Any
-from typing import Dict
-from typing import Iterable
-from typing import List
-from typing import Optional
-from typing import TypeVar
 from urllib.parse import urlparse
 
-T = TypeVar("T")
-
-JSON = Dict[str, str]
-ListJSON = Dict[str, List[JSON]]
-AnyJSON = Dict[str, Any]
+type JSON = dict[str, str]
+type AnyJSON = dict[str, Any]
 
 
 @dataclass
 class OptionData:
     text: str
-    emoji: Optional[str]
+    emoji: str | None
 
 
 @dataclass
 class Command:
     question: str
-    options: List[OptionData]
+    options: list[OptionData]
     anonymous: bool
     secret: bool
-    vote_emoji: Optional[str]
-    vote_limit: Optional[int]
+    vote_emoji: str | None
+    vote_limit: int | None
 
 
-def batch(lst: List[T], n: int = 1) -> Iterable[List[T]]:
-    ln = len(lst)
-    for ndx in range(0, ln, n):
-        yield lst[ndx : min(ndx + n, ln)]
+def pluralize(n: int, word: str) -> str:
+    """Return `word` with an `s` suffix unless `n == 1`."""
+    return word if n == 1 else f"{word}s"
 
 
 def get_footer(
-    user_id: Optional[str], anonymous: bool, secret: bool, vote_limit: Optional[int]
+    user_id: str | None, anonymous: bool, secret: bool, vote_limit: int | None
 ) -> str:
-    limit_str = ""
-    if vote_limit:
-        limit_str = f". (Pick up to {vote_limit} option{'s' if vote_limit > 1 else ''})"
+    limit_str = (
+        f". (Pick up to {vote_limit} {pluralize(vote_limit, 'option')})"
+        if vote_limit
+        else ""
+    )
     if secret:
         return f"Poll creator and votes are hidden{limit_str}"
     if anonymous:
         return f"Anonymous poll created by <@{user_id}> with /votey{limit_str}"
-
     return f"Poll created by <@{user_id}> with /votey{limit_str}"
 
 
-def rewrite_pg_url(database_url: str) -> str:
+def normalize_database_url(database_url: str) -> str:
+    """Return a SQLAlchemy-compatible database URL for the given backend."""
     url = urlparse(database_url)
-    return url._replace(scheme="postgresql+psycopg2").geturl()
+    scheme = url.scheme.lower().split("+", maxsplit=1)[0]
+    if scheme in ("postgres", "postgresql"):
+        return url._replace(scheme="postgresql+psycopg2").geturl()
+    return database_url

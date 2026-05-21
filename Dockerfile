@@ -1,35 +1,24 @@
-FROM python:3.12-slim
+FROM python:3.14-slim
 
-# Set environment variables for Poetry
-ENV POETRY_VERSION=2.1.3 \
-    POETRY_HOME=/opt/poetry \
-    POETRY_CACHE_DIR=/opt/.cache \
-    PATH="/opt/poetry/bin:$PATH"
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
-# Install system dependencies
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Poetry
-RUN pip install --no-cache-dir "poetry==$POETRY_VERSION"
-
-# Set working directory
 WORKDIR /app
 
-# Copy dependency files first for better caching
-COPY pyproject.toml poetry.lock ./
+COPY pyproject.toml uv.lock ./
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev
 
-# Install dependencies
-RUN poetry install --no-root --no-interaction --no-ansi
-
-# Copy application code
 COPY . .
 
-# Expose the application port
 EXPOSE 8000
 ENV PORT=8000
 
-# Run the application
-CMD ["poetry", "run", "gunicorn", "run:app"]
+CMD ["uv", "run", "gunicorn", "run:app"]

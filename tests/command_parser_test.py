@@ -1,12 +1,21 @@
-# type: ignore
 from unittest.mock import MagicMock
+from unittest.mock import patch
 
 import pytest
 
 from votey.slack import ANON_KEYWORDS
-from votey.slack import get_command_from_req
 from votey.slack import SECRET_KEYWORDS
+from votey.slack import get_command_from_req
 from votey.utils import OptionData
+
+
+@pytest.fixture(autouse=True)
+def _stub_slack_calls():
+    """Keep parser tests offline: the parser sends ephemeral messages on
+    validation errors, but those should not require a real Slack workspace."""
+    with patch("votey.slack.send_ephemeral_message", return_value=None) as stub:
+        yield stub
+
 
 QUESTION = "Some Question?"
 FIRST_OPTION = "Some Option1"

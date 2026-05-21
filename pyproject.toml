@@ -1,29 +1,69 @@
-[tool.poetry]
+[project]
 name = "votey"
 version = "0.1.0"
 description = ""
-authors = ["kedarv <1365665+kedarv@users.noreply.github.com>"]
 readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "flask",
+    "flask-sqlalchemy",
+    "gunicorn",
+    "psycopg2-binary",
+    "slack-sdk>=3.41.0",
+    "sqlalchemy",
+]
 
-[tool.poetry.dependencies]
-python = "^3.12"
-flask = "*"
-flask-sqlalchemy = "*"
-gunicorn = "*"
-psycopg2-binary = "*"
-requests = "*"
-sqlalchemy = "*"
+[dependency-groups]
+dev = [
+    "mypy",
+    "pre-commit",
+    "python-dotenv",
+    "pytest",
+    "pytest-cov",
+    "ruff>=0.15.0",
+    "types-flask-sqlalchemy>=2.5.9.4",
+]
 
+[tool.uv]
+package = false
 
-[tool.poetry.group.dev.dependencies]
-mypy = "*"
-pre-commit = "*"
-prospector = {extras = ["with_bandit"], version = "*"}
-python-dotenv = "*"
-pytest = "*"
-pytest-cov = "*"
-types-flask-sqlalchemy = "^2.5.9.4"
+[tool.ruff]
+target-version = "py314"
+line-length = 88
 
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "W",    # pycodestyle warnings
+    "I",    # isort
+    "B",    # flake8-bugbear
+    "UP",   # pyupgrade
+    "SIM",  # flake8-simplify
+    "C4",   # flake8-comprehensions
+    "G",    # flake8-logging-format
+    "RUF",  # ruff-specific
+]
+ignore = [
+    "E203",  # whitespace before ':' (conflicts with formatter)
+    "E501",  # line too long (formatter handles wrapping)
+]
+
+[tool.ruff.lint.isort]
+force-single-line = true
+
+[tool.mypy]
+strict = true
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "flask"
+implicit_reexport = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=votey"
+
+[tool.coverage.run]
+source = ["votey"]
+omit = ["tests/*"]

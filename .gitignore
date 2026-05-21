@@ -8,14 +8,21 @@ __pycache__
 # typing
 .mypy_cache/
 
+.pytest_cache/
+
 # virtualenvs
 venv/
+.venv/
 
 # flask instance config
 instance/
+
+# local sqlite database
+data/
 
 cache.*
 *.csv
 .env
 
 .coverage
+.ruff_cache/

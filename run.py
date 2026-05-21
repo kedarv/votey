@@ -1,15 +1,12 @@
-from threading import Lock
-
 from dotenv import load_dotenv
 
 from votey import create_app
 from votey.exts import db
 
-load_dotenv(".env")
+load_dotenv()
 app = create_app()
-lock = Lock()
 
-with app.app_context(), lock:
+with app.app_context():
     db.create_all()
 
 if __name__ == "__main__":

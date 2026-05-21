@@ -1,39 +1,29 @@
 from datetime import datetime
-from typing import TYPE_CHECKING
+
+from sqlalchemy import Uuid  # type: ignore[attr-defined]
 
 from .exts import db
 
-if TYPE_CHECKING:
-    import uuid
 
-    from flask_sqlalchemy.model import Model
-    from sqlalchemy.types import TypeEngine
-
-    BaseModel = db.make_declarative_base(Model)
-    UUID = TypeEngine[uuid.UUID]  # pylint: disable=unsubscriptable-object
-
-else:
-    import sqlalchemy.dialects.postgresql
-
-    BaseModel = db.Model
-    UUID = sqlalchemy.dialects.postgresql.UUID(as_uuid=True)
+class _ModelBase(db.Model):  # type: ignore[misc,name-defined]
+    __abstract__ = True
 
 
-class Workspace(BaseModel):
+class Workspace(_ModelBase):
     id = db.Column(db.Integer, primary_key=True)
     team_id = db.Column(db.Text, nullable=False)
     name = db.Column(db.Text, nullable=False)
     token = db.Column(db.Text, nullable=False)
 
 
-class Vote(BaseModel):
+class Vote(_ModelBase):
     id = db.Column(db.Integer, primary_key=True)
     poll_id = db.Column(db.Integer, db.ForeignKey("poll.id"), nullable=False)
     option_id = db.Column(db.Integer, db.ForeignKey("option.id"), nullable=False)
     user = db.Column(db.Text, nullable=False)
 
 
-class Option(BaseModel):
+class Option(_ModelBase):
     id = db.Column(db.Integer, primary_key=True)
     poll_id = db.Column(db.Integer, db.ForeignKey("poll.id"), nullable=False)
     option_text = db.Column(db.Text, nullable=False)
@@ -41,20 +31,23 @@ class Option(BaseModel):
     votes = db.relationship("Vote", backref="option", lazy="select")
 
 
-class Poll(BaseModel):
+class Poll(_ModelBase):
     id = db.Column(db.Integer, primary_key=True)
-    identifier = db.Column(UUID, unique=True, nullable=False)
+    identifier = db.Column(Uuid(as_uuid=True), unique=True, nullable=False)
     question = db.Column(db.Text, nullable=False)
     anonymous = db.Column(db.Boolean, nullable=False, default=False)
     secret = db.Column(db.Boolean, nullable=False, default=False)
     vote_emoji = db.Column(db.Text, nullable=True)
     author = db.Column(db.Text, nullable=True)
-    options = db.relationship("Option", backref="poll", lazy="select")
+    options = db.relationship(
+        "Option", backref="poll", lazy="select", order_by="Option.id"
+    )
     votes = db.relationship("Vote", backref="poll", lazy="select")
     ts = db.Column(db.Text, nullable=True)
     channel = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.now)
-    vote_limit = db.Column(db.Integer, nullable=False)
+    vote_limit = db.Column(db.Integer, nullable=True)
 
-    def poll_identifier(self) -> str:
-        return f"{self.identifier}"
+    @property
+    def callback_id(self) -> str:
+        return str(self.identifier)
