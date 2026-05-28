@@ -7,6 +7,8 @@ a simple slack polling slash command - because paying for polls is kind of stupi
 ## User Guide
 Votey is a surprisingly complex application because it has a variety of options that can allow you to customize how your poll looks and behaves. A Votey poll is composed of three components, a poll title, options, and voters. The first quoted string after the `/votey` command is used as the poll title, and following text is used to form "options" (ie. items that can be voted upon) and poll configuration options.
 
+Run `/votey` with no arguments to open a creation modal with form fields for the question, options, per-option emoji, channel, vote limit, and anonymous/secret toggles. Use the **Add option** button to add up to 10 rows. The inline syntax below is still supported and posts the poll immediately.
+
 Simple poll example:
 
 `/votey "some title" "some option A" "some option B"`

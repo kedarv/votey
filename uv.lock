@@ -542,6 +542,18 @@ wheels = [
 ]
 
 [[package]]
+name = "slack-bolt"
+version = "1.28.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "slack-sdk" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/5c/97/a62dde97e84027b252807f2044bed2edcda2d063a5cb0c535fb2be8d9b5d/slack_bolt-1.28.0.tar.gz", hash = "sha256:bfe367d867e8fb157a057248ebd4ac2d7f43acac6d0700fa31381db1e10f3b0f", size = 130768, upload-time = "2026-04-06T23:24:59.936Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/81/a9/697b6a92c728f09d5ef6b8e83dc6c8a87bc6d59499b2933ed067f11b7e30/slack_bolt-1.28.0-py2.py3-none-any.whl", hash = "sha256:738d1ca5e7c7039b6e18103d29267ced6e18c2517053eff18991fdd593acce5c", size = 234819, upload-time = "2026-04-06T23:24:58.278Z" },
+]
+
+[[package]]
 name = "slack-sdk"
 version = "3.41.0"
 source = { registry = "https://pypi.org/simple" }
@@ -630,6 +642,7 @@ dependencies = [
     { name = "flask-sqlalchemy" },
     { name = "gunicorn" },
     { name = "psycopg2-binary" },
+    { name = "slack-bolt" },
     { name = "slack-sdk" },
     { name = "sqlalchemy" },
 ]
@@ -651,6 +664,7 @@ requires-dist = [
     { name = "flask-sqlalchemy" },
     { name = "gunicorn" },
     { name = "psycopg2-binary" },
+    { name = "slack-bolt", specifier = ">=1.28.0" },
     { name = "slack-sdk", specifier = ">=3.41.0" },
     { name = "sqlalchemy" },
 ]

@@ -16,6 +16,9 @@ from slack_sdk.web import SlackResponse
 from sqlalchemy.orm import selectinload
 
 from .exts import db
+from .modal import ADD_OPTION_ACTION_ID
+from .modal import build_create_poll_view
+from .modal import read_view_values
 from .models import Option
 from .models import Poll
 from .models import Vote
@@ -55,9 +58,22 @@ ACTIONS_PER_ATTACHMENT = 5
 def slack() -> Any:
     if not valid_request(request):
         return ""
-    if request.form.get("payload"):
+    payload_raw = request.form.get("payload")
+    if payload_raw:
+        try:
+            payload = json.loads(payload_raw)
+        except json.JSONDecodeError, TypeError:
+            current_app.logger.warning("invalid interactive payload: %r", payload_raw)
+            return ""
+        ptype = payload.get("type")
+        if ptype == "view_submission":
+            return handle_view_submission(payload)
+        if ptype == "block_actions" and payload.get("view"):
+            return handle_modal_block_action(payload)
         return handle_button_interaction(request.form)
-    return handle_poll_creation(request.form)
+    if request.form.get("text", "").strip():
+        return handle_poll_creation(request.form)
+    return open_create_modal(request.form)
 
 
 @bp.route("/oauth", methods=["GET"])
@@ -156,7 +172,31 @@ def handle_poll_creation(req: JSON) -> Any:
         return ""
 
     channel = req.get("channel_id", "")
+    user_id = req.get("user_id", "")
+    res, attachments = create_and_post_poll(workspace, channel, user_id, cmd)
+    if res is None or "ts" not in res:
+        body = {
+            "response_type": "in_channel",
+            "text": " ",
+            "attachments": attachments,
+        }
+        current_app.logger.debug("DIRECTLY returning %s", body)
+        return jsonify(body)
+    return ""
 
+
+def create_and_post_poll(
+    workspace: Workspace,
+    channel: str,
+    user_id: str,
+    cmd: Command,
+) -> tuple[SlackResponse | None, list[dict[str, Any]]]:
+    """Persist a poll, post it to `channel`, and DM the author a delete button.
+
+    Returns the `chat.postMessage` response (or `None` if the API call failed)
+    plus the rendered attachments so the caller can fall back to an inline
+    response or surface an error to the user.
+    """
     poll = Poll(
         identifier=uuid.uuid4(),
         question=cmd.question,
@@ -164,7 +204,7 @@ def handle_poll_creation(req: JSON) -> Any:
         anonymous=cmd.anonymous,
         secret=cmd.secret,
         vote_emoji=cmd.vote_emoji,
-        author=None if cmd.secret else req.get("user_id"),
+        author=None if cmd.secret else user_id,
         vote_limit=cmd.vote_limit,
     )
     db.session.add(poll)
@@ -182,6 +222,17 @@ def handle_poll_creation(req: JSON) -> Any:
 
     attachments = generate_poll_markup(poll_id=poll.id)
 
+    current_app.logger.debug("writing poll to channel %s", channel)
+    res = send_message(workspace, channel, attachments=attachments)
+    current_app.logger.debug(
+        "got poll creation response: %s", res.data if res else None
+    )
+    if res is None or "ts" not in res:
+        return res, attachments
+
+    poll.ts = res["ts"]
+    db.session.commit()
+
     delete_attachment = {
         "text": " ",
         "callback_id": poll.callback_id,
@@ -189,28 +240,147 @@ def handle_poll_creation(req: JSON) -> Any:
             {"name": "delete", "text": "Delete", "type": "button", "style": "danger"}
         ],
     }
-    current_app.logger.debug("writing poll to channel %s", channel)
-    res = send_message(workspace, channel, attachments=attachments)
-    current_app.logger.debug(
-        "got poll creation response: %s", res.data if res else None
-    )
-    if res is None or "ts" not in res:
-        body = {
-            "response_type": "in_channel",
-            "text": " ",
-            "attachments": attachments,
-        }
-        current_app.logger.debug("DIRECTLY returning %s", body)
-        return jsonify(body)
-
-    poll.ts = res["ts"]
-    db.session.commit()
     send_message(
         workspace,
-        req.get("user_id", ""),
+        user_id,
         text=f'Delete your last poll, "{cmd.question}"?',
         attachments=[delete_attachment],
     )
+    return res, attachments
+
+
+def open_create_modal(req: JSON) -> Any:
+    workspace = Workspace.query.filter_by(team_id=req.get("team_id")).first()
+    if workspace is None:
+        return "Something went wrong finding your workspace!"
+    trigger_id = req.get("trigger_id", "")
+    channel_id = req.get("channel_id", "")
+    view = build_create_poll_view(channel_id=channel_id)
+    try:
+        _client(workspace).views_open(trigger_id=trigger_id, view=view)
+    except SlackApiError as e:
+        current_app.logger.warning("views.open failed: %s", e.response.data)
+        return "Couldn't open the poll modal - please try again."
+    return ""
+
+
+def handle_view_submission(payload: AnyJSON) -> Any:
+    current_app.logger.debug("handling view_submission %s", payload)
+    workspace = Workspace.query.filter_by(
+        team_id=payload.get("team", {}).get("id")
+    ).first()
+    if workspace is None:
+        return jsonify(
+            {
+                "response_action": "errors",
+                "errors": {"channel_block": "Workspace not found."},
+            }
+        )
+
+    view = payload.get("view") or {}
+    user_id = payload.get("user", {}).get("id", "")
+    values = read_view_values(view)
+
+    errors: dict[str, str] = {}
+
+    raw_options: list[tuple[str, str]] = list(values.get("options") or [])
+    options = [
+        OptionData(
+            text=text.strip(),
+            emoji=(emoji.strip() if is_slackmoji(emoji.strip()) else None),
+        )
+        for text, emoji in raw_options
+        if text.strip()
+    ]
+    if not options:
+        errors["option_1_block"] = "Please provide at least one option."
+    elif len(options) > MAX_OPTIONS:
+        errors["option_1_block"] = (
+            f"Sorry - Votey only supports {MAX_OPTIONS} options at the moment."
+        )
+
+    vote_limit_raw = (values.get("vote_limit_raw") or "").strip()
+    vote_limit: int | None = None
+    if vote_limit_raw:
+        try:
+            vote_limit = int(vote_limit_raw)
+        except ValueError:
+            errors["vote_limit_block"] = "Vote limit must be a whole number."
+        else:
+            if vote_limit < 1:
+                errors["vote_limit_block"] = "Vote limit must be at least 1."
+            elif options and vote_limit > len(options):
+                errors["vote_limit_block"] = (
+                    "Vote limit can't exceed the number of options."
+                )
+
+    channel = values.get("channel_id") or ""
+    if not channel:
+        errors.setdefault("channel_block", "Please select a channel to post to.")
+
+    if errors:
+        return jsonify({"response_action": "errors", "errors": errors})
+
+    vote_emoji_raw = (values.get("vote_emoji") or "").strip()
+    vote_emoji = vote_emoji_raw if is_slackmoji(vote_emoji_raw) else None
+
+    secret = bool(values.get("secret"))
+    anonymous = secret or bool(values.get("anonymous"))
+
+    cmd = Command(
+        question=(values.get("question") or "").strip(),
+        options=options,
+        anonymous=anonymous,
+        secret=secret,
+        vote_emoji=vote_emoji,
+        vote_limit=vote_limit,
+    )
+
+    res, _ = create_and_post_poll(workspace, channel, user_id, cmd)
+    if res is None or "ts" not in res:
+        return jsonify(
+            {
+                "response_action": "errors",
+                "errors": {
+                    "channel_block": (
+                        "Couldn't post the poll to that channel - make sure "
+                        "Votey has been added to it."
+                    )
+                },
+            }
+        )
+
+    return ""
+
+
+def handle_modal_block_action(payload: AnyJSON) -> Any:
+    workspace = Workspace.query.filter_by(
+        team_id=payload.get("team", {}).get("id")
+    ).first()
+    if workspace is None:
+        return ""
+    actions = payload.get("actions") or []
+    if not actions or actions[0].get("action_id") != ADD_OPTION_ACTION_ID:
+        return ""
+
+    view = payload.get("view") or {}
+    values = read_view_values(view)
+    current_count = len(values.get("options") or [])
+    new_count = min(current_count + 1, MAX_OPTIONS)
+
+    new_view = build_create_poll_view(
+        channel_id=values.get("channel_id"),
+        option_count=new_count,
+        prefill_values=values,
+    )
+    try:
+        _client(workspace).views_update(
+            view_id=view.get("id"),
+            hash=view.get("hash"),
+            view=new_view,
+        )
+    except SlackApiError as e:
+        current_app.logger.warning("views.update failed: %s", e.response.data)
     return ""
 
 
