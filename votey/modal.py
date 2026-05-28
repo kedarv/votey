@@ -15,23 +15,27 @@ from typing import Any
 from slack_sdk.models.blocks import ActionsBlock
 from slack_sdk.models.blocks import Block
 from slack_sdk.models.blocks import ButtonElement
-from slack_sdk.models.blocks import CheckboxesElement
 from slack_sdk.models.blocks import ConversationSelectElement
 from slack_sdk.models.blocks import InputBlock
 from slack_sdk.models.blocks import NumberInputElement
 from slack_sdk.models.blocks import Option
 from slack_sdk.models.blocks import PlainTextInputElement
+from slack_sdk.models.blocks import StaticSelectElement
 from slack_sdk.models.views import View
 
+from .utils import MAX_OPTIONS
 from .utils import AnyJSON
 
-MAX_OPTIONS = 10
 DEFAULT_OPTION_COUNT = 2
 CALLBACK_ID = "votey_create_poll"
 ADD_OPTION_ACTION_ID = "add_option"
 
 _OPTION_BLOCK_RE = re.compile(r"^option_(\d+)_block$")
 
+# The three visibility modes are mutually exclusive: `secret` is a strict
+# superset of `anonymous` (see `build_command` in utils.py), so a single-select
+# is more honest UX than independent checkboxes.
+_PUBLIC_OPTION = Option(value="public", text="Public (show creator + voters)")
 _ANON_OPTION = Option(value="anonymous", text="Anonymous (hide voter names)")
 _SECRET_OPTION = Option(value="secret", text="Secret (hide creator + voters)")
 
@@ -86,7 +90,7 @@ def read_view_values(view: AnyJSON) -> AnyJSON:
     if not channel_id:
         try:
             meta = json.loads(view.get("private_metadata") or "{}")
-        except json.JSONDecodeError, TypeError:
+        except (json.JSONDecodeError, TypeError):
             meta = {}
         channel_id = meta.get("channel_id") if isinstance(meta, dict) else None
 
@@ -113,12 +117,10 @@ def read_view_values(view: AnyJSON) -> AnyJSON:
         )
         options.append((text, emoji))
 
-    selected = (
-        values.get("flags_block", {}).get("flags", {}).get("selected_options") or []
-    )
-    flag_values = {opt.get("value") for opt in selected}
-    anonymous = "anonymous" in flag_values
-    secret = "secret" in flag_values
+    selected = values.get("flags_block", {}).get("flags", {}).get("selected_option")
+    flag_value = selected.get("value") if isinstance(selected, dict) else None
+    anonymous = flag_value == "anonymous"
+    secret = flag_value == "secret"
 
     vote_emoji = (
         values.get("vote_emoji_block", {}).get("vote_emoji", {}).get("value") or ""
@@ -185,18 +187,19 @@ def _add_option_block() -> ActionsBlock:
 
 
 def _flags_block(prefill: AnyJSON) -> InputBlock:
-    initial: list[Option] = []
-    if prefill.get("anonymous"):
-        initial.append(_ANON_OPTION)
     if prefill.get("secret"):
-        initial.append(_SECRET_OPTION)
+        initial = _SECRET_OPTION
+    elif prefill.get("anonymous"):
+        initial = _ANON_OPTION
+    else:
+        initial = _PUBLIC_OPTION
     return InputBlock(
         block_id="flags_block",
-        label="Settings",
-        element=CheckboxesElement(
+        label="Visibility",
+        element=StaticSelectElement(
             action_id="flags",
-            options=[_ANON_OPTION, _SECRET_OPTION],
-            initial_options=initial or None,
+            options=[_PUBLIC_OPTION, _ANON_OPTION, _SECRET_OPTION],
+            initial_option=initial,
         ),
         optional=True,
     )

@@ -37,19 +37,19 @@ def _state_values(
     vote_emoji="",
     vote_limit="",
 ):
+    if secret:
+        flag = {"value": "secret"}
+    elif anonymous:
+        flag = {"value": "anonymous"}
+    else:
+        flag = {"value": "public"}
     values = {
         "channel_block": {"channel": {"selected_conversation": channel}},
         "question_block": {"question": {"value": question}},
-        "flags_block": {"flags": {"selected_options": []}},
+        "flags_block": {"flags": {"selected_option": flag}},
         "vote_emoji_block": {"vote_emoji": {"value": vote_emoji}},
         "vote_limit_block": {"vote_limit": {"value": vote_limit}},
     }
-    if anonymous:
-        values["flags_block"]["flags"]["selected_options"].append(
-            {"value": "anonymous"}
-        )
-    if secret:
-        values["flags_block"]["flags"]["selected_options"].append({"value": "secret"})
 
     for i, (text, emoji) in enumerate(options, start=1):
         values[f"option_{i}_block"] = {f"option_{i}": {"value": text}}

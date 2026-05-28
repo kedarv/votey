@@ -109,8 +109,13 @@ def test_prefill_values_populate_initial_values():
     assert _block_by_id(view, "option_2_block")["element"]["initial_value"] == "Salad"
 
     flags_element = _block_by_id(view, "flags_block")["element"]
-    initial_options = flags_element.get("initial_options", [])
-    assert [opt["value"] for opt in initial_options] == ["anonymous"]
+    assert flags_element["type"] == "static_select"
+    assert flags_element["initial_option"]["value"] == "anonymous"
+    assert [opt["value"] for opt in flags_element["options"]] == [
+        "public",
+        "anonymous",
+        "secret",
+    ]
 
     assert _block_by_id(view, "vote_limit_block")["element"]["initial_value"] == "1"
 
@@ -146,10 +151,10 @@ def test_read_view_values_round_trips_prefill():
                     "selected_conversation": element.get("initial_conversation")
                 }
             }
-        elif element["type"] == "checkboxes":
+        elif element["type"] == "static_select":
             state_values[block_id] = {
                 action_id: {
-                    "selected_options": element.get("initial_options", []),
+                    "selected_option": element.get("initial_option"),
                 }
             }
 

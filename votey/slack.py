@@ -24,10 +24,14 @@ from .models import Poll
 from .models import Vote
 from .models import Workspace
 from .utils import JSON
+from .utils import MAX_OPTIONS
 from .utils import AnyJSON
 from .utils import Command
+from .utils import CommandError
 from .utils import OptionData
+from .utils import build_command
 from .utils import get_footer
+from .utils import is_slackmoji
 from .utils import pluralize
 
 bp = Blueprint("slack", __name__)
@@ -50,8 +54,52 @@ SECRET_KEYWORDS = {"--secret", "-secret"}
 LIMIT_KEYWORDS = {"--limit", "-limit"}
 ALL_FLAG_KEYWORDS = ANON_KEYWORDS | SECRET_KEYWORDS | LIMIT_KEYWORDS
 
-MAX_OPTIONS = 10
 ACTIONS_PER_ATTACHMENT = 5
+
+_CLI_ERROR_MESSAGES: dict[CommandError, str] = {
+    CommandError.NO_OPTIONS: (
+        "Oops - a poll needs to have at least one option. "
+        'Try again with `/votey "question" "option 1"`'
+    ),
+    CommandError.TOO_MANY_OPTIONS: (
+        f"Sorry - Votey only supports {MAX_OPTIONS} options at the moment."
+    ),
+    CommandError.LIMIT_NOT_INT: (
+        "Oops - you must specify a numeric value when using `--limit`. "
+        'Try again with `/votey "question" "option 1" --limit=1`'
+    ),
+    CommandError.LIMIT_TOO_LOW: (
+        "Oops - you must specify a numeric value when using `--limit`. "
+        'Try again with `/votey "question" "option 1" --limit=1`'
+    ),
+    CommandError.LIMIT_EXCEEDS_OPTIONS: (
+        "Whoops, your desired vote limit is larger than the number of options "
+        "you provided."
+    ),
+}
+
+_MODAL_ERROR_MESSAGES: dict[CommandError, tuple[str, str]] = {
+    CommandError.NO_OPTIONS: (
+        "option_1_block",
+        "Please provide at least one option.",
+    ),
+    CommandError.TOO_MANY_OPTIONS: (
+        "option_1_block",
+        f"Sorry - Votey only supports {MAX_OPTIONS} options at the moment.",
+    ),
+    CommandError.LIMIT_NOT_INT: (
+        "vote_limit_block",
+        "Vote limit must be a whole number.",
+    ),
+    CommandError.LIMIT_TOO_LOW: (
+        "vote_limit_block",
+        "Vote limit must be at least 1.",
+    ),
+    CommandError.LIMIT_EXCEEDS_OPTIONS: (
+        "vote_limit_block",
+        "Vote limit can't exceed the number of options.",
+    ),
+}
 
 
 @bp.route("/slack", methods=["POST"])
@@ -62,7 +110,7 @@ def slack() -> Any:
     if payload_raw:
         try:
             payload = json.loads(payload_raw)
-        except json.JSONDecodeError, TypeError:
+        except (json.JSONDecodeError, TypeError):
             current_app.logger.warning("invalid interactive payload: %r", payload_raw)
             return ""
         ptype = payload.get("type")
@@ -281,8 +329,6 @@ def handle_view_submission(payload: AnyJSON) -> Any:
     user_id = payload.get("user", {}).get("id", "")
     values = read_view_values(view)
 
-    errors: dict[str, str] = {}
-
     raw_options: list[tuple[str, str]] = list(values.get("options") or [])
     options = [
         OptionData(
@@ -292,49 +338,27 @@ def handle_view_submission(payload: AnyJSON) -> Any:
         for text, emoji in raw_options
         if text.strip()
     ]
-    if not options:
-        errors["option_1_block"] = "Please provide at least one option."
-    elif len(options) > MAX_OPTIONS:
-        errors["option_1_block"] = (
-            f"Sorry - Votey only supports {MAX_OPTIONS} options at the moment."
-        )
 
-    vote_limit_raw = (values.get("vote_limit_raw") or "").strip()
-    vote_limit: int | None = None
-    if vote_limit_raw:
-        try:
-            vote_limit = int(vote_limit_raw)
-        except ValueError:
-            errors["vote_limit_block"] = "Vote limit must be a whole number."
-        else:
-            if vote_limit < 1:
-                errors["vote_limit_block"] = "Vote limit must be at least 1."
-            elif options and vote_limit > len(options):
-                errors["vote_limit_block"] = (
-                    "Vote limit can't exceed the number of options."
-                )
+    cmd, err = build_command(
+        question=(values.get("question") or "").strip(),
+        options=options,
+        anonymous=bool(values.get("anonymous")),
+        secret=bool(values.get("secret")),
+        vote_emoji_raw=(values.get("vote_emoji") or "").strip(),
+        vote_limit_raw=(values.get("vote_limit_raw") or "").strip() or None,
+    )
+
+    errors: dict[str, str] = {}
+    if err is not None:
+        block_id, message = _MODAL_ERROR_MESSAGES[err]
+        errors[block_id] = message
 
     channel = values.get("channel_id") or ""
     if not channel:
         errors.setdefault("channel_block", "Please select a channel to post to.")
 
-    if errors:
+    if errors or cmd is None:
         return jsonify({"response_action": "errors", "errors": errors})
-
-    vote_emoji_raw = (values.get("vote_emoji") or "").strip()
-    vote_emoji = vote_emoji_raw if is_slackmoji(vote_emoji_raw) else None
-
-    secret = bool(values.get("secret"))
-    anonymous = secret or bool(values.get("anonymous"))
-
-    cmd = Command(
-        question=(values.get("question") or "").strip(),
-        options=options,
-        anonymous=anonymous,
-        secret=secret,
-        vote_emoji=vote_emoji,
-        vote_limit=vote_limit,
-    )
 
     res, _ = create_and_post_poll(workspace, channel, user_id, cmd)
     if res is None or "ts" not in res:
@@ -473,10 +497,6 @@ def names(votes: list[Vote]) -> str:
     return ",".join(f"<@{vote.user}>" for vote in votes)
 
 
-def is_slackmoji(string: str) -> bool:
-    return len(string) >= 2 and string.startswith(":") and string.endswith(":")
-
-
 def valid_request(req: Any) -> bool:
     verifier = SignatureVerifier(current_app.config["SIGNING_SECRET"])
     return verifier.is_valid_request(req.get_data(), dict(req.headers))
@@ -519,27 +539,15 @@ def get_command_from_req(req: JSON, workspace: Workspace) -> Command | None:
         return None
 
     secret = _has_flag(tokens, SECRET_KEYWORDS)
-    anonymous = secret or _has_flag(tokens, ANON_KEYWORDS)
-
+    anonymous = _has_flag(tokens, ANON_KEYWORDS)
     flag_emoji = _find_flag_value(tokens, ANON_KEYWORDS | SECRET_KEYWORDS)
-    vote_emoji = flag_emoji if flag_emoji and is_slackmoji(flag_emoji) else None
 
-    vote_limit: int | None = None
+    vote_limit_raw: str | None = None
     if _has_flag(tokens, LIMIT_KEYWORDS):
-        raw_limit = _find_flag_value(tokens, LIMIT_KEYWORDS)
-        if raw_limit is None:
+        vote_limit_raw = _find_flag_value(tokens, LIMIT_KEYWORDS)
+        if vote_limit_raw is None:
             reply(
                 "Oops - you must specify a value when using `--limit`. "
-                'Try again with `/votey "question" "option 1" --limit=1`'
-            )
-            return None
-        try:
-            vote_limit = int(raw_limit)
-            if vote_limit < 1:
-                raise ValueError("vote_limit must be >= 1")
-        except ValueError:
-            reply(
-                "Oops - you must specify a numeric value when using `--limit`. "
                 'Try again with `/votey "question" "option 1" --limit=1`'
             )
             return None
@@ -547,36 +555,21 @@ def get_command_from_req(req: JSON, workspace: Workspace) -> Command | None:
     positional = [
         tok for tok in tokens if not any(tok.startswith(kw) for kw in ALL_FLAG_KEYWORDS)
     ]
+    poll_question = _strip_outer_quotes(positional[0]) if positional else ""
+    options = _parse_options(positional[1:]) if len(positional) >= 2 else []
 
-    if len(positional) < 2:
-        reply(
-            "Oops - a poll needs to have at least one option. "
-            'Try again with `/votey "question" "option 1"`'
-        )
-        return None
-
-    poll_question = _strip_outer_quotes(positional[0])
-    options = _parse_options(positional[1:])
-
-    if vote_limit is not None and vote_limit > len(options):
-        reply(
-            "Whoops, your desired vote limit is larger than the number of options "
-            "you provided."
-        )
-        return None
-
-    if len(options) > MAX_OPTIONS:
-        reply(f"Sorry - Votey only supports {MAX_OPTIONS} options at the moment.")
-        return None
-
-    return Command(
+    cmd, err = build_command(
         question=poll_question,
         options=options,
         anonymous=anonymous,
         secret=secret,
-        vote_emoji=vote_emoji,
-        vote_limit=vote_limit,
+        vote_emoji_raw=flag_emoji,
+        vote_limit_raw=vote_limit_raw,
     )
+    if err is not None:
+        reply(_CLI_ERROR_MESSAGES[err])
+        return None
+    return cmd
 
 
 def _parse_options(tokens: list[str]) -> list[OptionData]:
