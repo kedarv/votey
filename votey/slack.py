@@ -2,6 +2,7 @@ import json
 import shlex
 import time
 import uuid
+from collections.abc import Callable
 from itertools import batched
 from typing import Any
 
@@ -238,6 +239,7 @@ def create_and_post_poll(
     channel: str,
     user_id: str,
     cmd: Command,
+    client: WebClient | None = None,
 ) -> tuple[SlackResponse | None, list[dict[str, Any]]]:
     """Persist a poll, post it to `channel`, and DM the author a delete button.
 
@@ -245,6 +247,8 @@ def create_and_post_poll(
     plus the rendered attachments so the caller can fall back to an inline
     response or surface an error to the user.
     """
+    c = client or _client(workspace)
+
     poll = Poll(
         identifier=uuid.uuid4(),
         question=cmd.question,
@@ -271,7 +275,7 @@ def create_and_post_poll(
     attachments = generate_poll_markup(poll_id=poll.id)
 
     current_app.logger.debug("writing poll to channel %s", channel)
-    res = send_message(workspace, channel, attachments=attachments)
+    res = _post_message(c, channel, attachments=attachments)
     current_app.logger.debug(
         "got poll creation response: %s", res.data if res else None
     )
@@ -288,8 +292,8 @@ def create_and_post_poll(
             {"name": "delete", "text": "Delete", "type": "button", "style": "danger"}
         ],
     }
-    send_message(
-        workspace,
+    _post_message(
+        c,
         user_id,
         text=f'Delete your last poll, "{cmd.question}"?',
         attachments=[delete_attachment],
@@ -312,21 +316,13 @@ def open_create_modal(req: JSON) -> Any:
     return ""
 
 
-def handle_view_submission(payload: AnyJSON) -> Any:
-    current_app.logger.debug("handling view_submission %s", payload)
-    workspace = Workspace.query.filter_by(
-        team_id=payload.get("team", {}).get("id")
-    ).first()
-    if workspace is None:
-        return jsonify(
-            {
-                "response_action": "errors",
-                "errors": {"channel_block": "Workspace not found."},
-            }
-        )
+def validate_view_submission(
+    view: AnyJSON,
+) -> tuple[Command | None, str, dict[str, str]]:
+    """Parse and validate modal view values.
 
-    view = payload.get("view") or {}
-    user_id = payload.get("user", {}).get("id", "")
+    Returns (cmd_or_None, channel_id, errors_dict).
+    """
     values = read_view_values(view)
 
     raw_options: list[tuple[str, str]] = list(values.get("options") or [])
@@ -356,6 +352,26 @@ def handle_view_submission(payload: AnyJSON) -> Any:
     channel = values.get("channel_id") or ""
     if not channel:
         errors.setdefault("channel_block", "Please select a channel to post to.")
+
+    return cmd, channel, errors
+
+
+def handle_view_submission(payload: AnyJSON) -> Any:
+    current_app.logger.debug("handling view_submission %s", payload)
+    workspace = Workspace.query.filter_by(
+        team_id=payload.get("team", {}).get("id")
+    ).first()
+    if workspace is None:
+        return jsonify(
+            {
+                "response_action": "errors",
+                "errors": {"channel_block": "Workspace not found."},
+            }
+        )
+
+    view = payload.get("view") or {}
+    user_id = payload.get("user", {}).get("id", "")
+    cmd, channel, errors = validate_view_submission(view)
 
     if errors or cmd is None:
         return jsonify({"response_action": "errors", "errors": errors})
@@ -419,39 +435,67 @@ def handle_vote(response: AnyJSON) -> Any:
     identifier = _parse_callback_id(response.get("callback_id"))
     if identifier is None:
         return ""
-    poll = Poll.query.filter_by(identifier=identifier).first()
-    option = Option.query.filter_by(id=response.get("actions", [])[0]["value"]).first()
-    if poll is None or option is None:
-        return ""
-
+    option_id = response.get("actions", [])[0]["value"]
     user = response.get("user", {}).get("id")
     workspace = Workspace.query.filter_by(
         team_id=response.get("team", {}).get("id")
     ).first()
 
-    vote = Vote.query.filter_by(poll_id=poll.id, option_id=option.id, user=user).first()
+    attachments, limit_hit = toggle_vote(
+        identifier, option_id, user, _client(workspace) if workspace else None,
+        response["channel"]["id"], response["user"]["id"],
+    )
+    if attachments is None:
+        return ""
+    return jsonify({"attachments": attachments})
+
+
+def toggle_vote(
+    poll_identifier: uuid.UUID,
+    option_id: int,
+    user: str,
+    client: WebClient | None,
+    channel_id: str,
+    user_id_for_ephemeral: str,
+) -> tuple[list[dict[str, Any]] | None, bool]:
+    """Toggle a vote and return (updated_attachments, limit_hit).
+
+    Returns (None, False) if the poll/option can't be found.
+    """
+    poll = Poll.query.filter_by(identifier=poll_identifier).first()
+    option = Option.query.filter_by(id=option_id).first()
+    if poll is None or option is None:
+        return None, False
+
+    vote = Vote.query.filter_by(
+        poll_id=poll.id, option_id=option.id, user=user
+    ).first()
     if vote is not None:
         db.session.delete(vote)
     else:
         user_votes_for_poll = Vote.query.filter_by(poll_id=poll.id, user=user).count()
         if poll.vote_limit is not None and user_votes_for_poll >= poll.vote_limit:
-            send_ephemeral_message(
-                workspace,
-                response["channel"]["id"],
-                response["user"]["id"],
-                f"This poll is limited to {poll.vote_limit} "
-                f"{pluralize(poll.vote_limit, 'option')}, please remove an "
-                f"existing vote before casting a new vote.",
-            )
-            return jsonify({"attachments": generate_poll_markup(poll_id=poll.id)})
+            if client:
+                try:
+                    client.chat_postEphemeral(
+                        channel=channel_id,
+                        user=user_id_for_ephemeral,
+                        text=(
+                            f"This poll is limited to {poll.vote_limit} "
+                            f"{pluralize(poll.vote_limit, 'option')}, please "
+                            f"remove an existing vote before casting a new vote."
+                        ),
+                    )
+                except SlackApiError as e:
+                    current_app.logger.warning(
+                        "chat.postEphemeral failed: %s", e.response.data
+                    )
+            return generate_poll_markup(poll_id=poll.id), True
 
         db.session.add(Vote(poll_id=poll.id, option_id=option.id, user=user))
     db.session.commit()
 
-    # Slack API kind of sucks
-    # Return a dictionary with the attachments key to update a message
-    # Is this even documented anywhere anymore?
-    return jsonify({"attachments": generate_poll_markup(poll_id=poll.id)})
+    return generate_poll_markup(poll_id=poll.id), False
 
 
 def handle_poll_deletion(response: AnyJSON) -> str:
@@ -461,20 +505,28 @@ def handle_poll_deletion(response: AnyJSON) -> str:
     identifier = _parse_callback_id(response.get("callback_id"))
     if identifier is None:
         return ""
+    if workspace is None:
+        return ""
+    return delete_poll(identifier, _client(workspace))
+
+
+def delete_poll(identifier: uuid.UUID, client: WebClient) -> str:
+    """Delete a poll and its associated data. Returns confirmation text."""
     poll = Poll.query.filter_by(identifier=identifier).first()
-    if poll is None or workspace is None:
+    if poll is None:
         return ""
 
+    question = poll.question
     Vote.query.filter_by(poll_id=poll.id).delete()
     Option.query.filter_by(poll_id=poll.id).delete()
     db.session.delete(poll)
     db.session.commit()
 
     try:
-        _client(workspace).chat_delete(channel=poll.channel, ts=poll.ts)
+        client.chat_delete(channel=poll.channel, ts=poll.ts)
     except SlackApiError as e:
         current_app.logger.warning("chat.delete failed: %s", e.response.data)
-    return f'Your poll "{poll.question}" has been deleted.'
+    return f'Your poll "{question}" has been deleted.'
 
 
 def _parse_callback_id(callback_id: Any) -> uuid.UUID | None:
@@ -531,8 +583,16 @@ def get_command_from_req(req: JSON, workspace: Workspace) -> Command | None:
             text,
         )
 
+    return parse_command_text(req.get("text", ""), reply)
+
+
+def parse_command_text(
+    text: str,
+    reply: Callable[[str], None],
+) -> Command | None:
+    """Parse slash-command text into a Command, sending errors via `reply`."""
     try:
-        fixed_quotes = req.get("text", "").replace("“", '"').replace("”", '"')
+        fixed_quotes = text.replace("“", '"').replace("”", '"')
         tokens = shlex.split(fixed_quotes, posix=False)
     except ValueError as e:
         reply(f"We had trouble parsing that - {e}")
@@ -613,16 +673,25 @@ def send_ephemeral_message(
         return None
 
 
+def _post_message(
+    client: WebClient,
+    dest: str,
+    text: str | None = None,
+    attachments: list[Any] | None = None,
+) -> SlackResponse | None:
+    try:
+        return client.chat_postMessage(
+            channel=dest, text=text, attachments=attachments
+        )
+    except SlackApiError as e:
+        current_app.logger.warning("chat.postMessage failed: %s", e.response.data)
+        return None
+
+
 def send_message(
     workspace: Workspace,
     dest: str,
     text: str | None = None,
     attachments: list[Any] | None = None,
 ) -> SlackResponse | None:
-    try:
-        return _client(workspace).chat_postMessage(
-            channel=dest, text=text, attachments=attachments
-        )
-    except SlackApiError as e:
-        current_app.logger.warning("chat.postMessage failed: %s", e.response.data)
-        return None
+    return _post_message(_client(workspace), dest, text=text, attachments=attachments)
