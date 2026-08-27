@@ -7,7 +7,6 @@ from typing import Any
 
 from flask import Blueprint
 from flask import current_app
-from flask import jsonify
 from flask import request
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
@@ -101,27 +100,40 @@ _MODAL_ERROR_MESSAGES: dict[CommandError, tuple[str, str]] = {
     ),
 }
 
+type SlackResult = str | AnyJSON
+
+
+def dispatch_slash_command(command: JSON) -> SlackResult:
+    """Dispatch a slash command independently of its HTTP or socket transport."""
+    if command.get("text", "").strip():
+        return handle_poll_creation(command)
+    return open_create_modal(command)
+
+
+def dispatch_interaction(payload: AnyJSON) -> SlackResult:
+    """Dispatch an interactive Slack payload independently of its transport."""
+    payload_type = payload.get("type")
+    if payload_type == "view_submission":
+        return handle_view_submission(payload)
+    if payload_type == "block_actions" and payload.get("view"):
+        return handle_modal_block_action(payload)
+    return handle_button_interaction(payload)
+
 
 @bp.route("/slack", methods=["POST"])
 def slack() -> Any:
     if not valid_request(request):
         return ""
-    payload_raw = request.form.get("payload")
+    form = request.form.to_dict(flat=True)
+    payload_raw = form.get("payload")
     if payload_raw:
         try:
             payload = json.loads(payload_raw)
-        except (json.JSONDecodeError, TypeError):
+        except json.JSONDecodeError, TypeError:
             current_app.logger.warning("invalid interactive payload: %r", payload_raw)
             return ""
-        ptype = payload.get("type")
-        if ptype == "view_submission":
-            return handle_view_submission(payload)
-        if ptype == "block_actions" and payload.get("view"):
-            return handle_modal_block_action(payload)
-        return handle_button_interaction(request.form)
-    if request.form.get("text", "").strip():
-        return handle_poll_creation(request.form)
-    return open_create_modal(request.form)
+        return dispatch_interaction(payload)
+    return dispatch_slash_command(form)
 
 
 @bp.route("/oauth", methods=["GET"])
@@ -210,7 +222,7 @@ def generate_poll_markup(poll_id: int) -> list[dict[str, Any]]:
     return attachments
 
 
-def handle_poll_creation(req: JSON) -> Any:
+def handle_poll_creation(req: JSON) -> SlackResult:
     current_app.logger.debug("creating poll with json %s", req)
     workspace = Workspace.query.filter_by(team_id=req.get("team_id")).first()
     if workspace is None:
@@ -229,7 +241,7 @@ def handle_poll_creation(req: JSON) -> Any:
             "attachments": attachments,
         }
         current_app.logger.debug("DIRECTLY returning %s", body)
-        return jsonify(body)
+        return body
     return ""
 
 
@@ -297,7 +309,7 @@ def create_and_post_poll(
     return res, attachments
 
 
-def open_create_modal(req: JSON) -> Any:
+def open_create_modal(req: JSON) -> SlackResult:
     workspace = Workspace.query.filter_by(team_id=req.get("team_id")).first()
     if workspace is None:
         return "Something went wrong finding your workspace!"
@@ -312,18 +324,16 @@ def open_create_modal(req: JSON) -> Any:
     return ""
 
 
-def handle_view_submission(payload: AnyJSON) -> Any:
+def handle_view_submission(payload: AnyJSON) -> SlackResult:
     current_app.logger.debug("handling view_submission %s", payload)
     workspace = Workspace.query.filter_by(
         team_id=payload.get("team", {}).get("id")
     ).first()
     if workspace is None:
-        return jsonify(
-            {
-                "response_action": "errors",
-                "errors": {"channel_block": "Workspace not found."},
-            }
-        )
+        return {
+            "response_action": "errors",
+            "errors": {"channel_block": "Workspace not found."},
+        }
 
     view = payload.get("view") or {}
     user_id = payload.get("user", {}).get("id", "")
@@ -358,26 +368,24 @@ def handle_view_submission(payload: AnyJSON) -> Any:
         errors.setdefault("channel_block", "Please select a channel to post to.")
 
     if errors or cmd is None:
-        return jsonify({"response_action": "errors", "errors": errors})
+        return {"response_action": "errors", "errors": errors}
 
     res, _ = create_and_post_poll(workspace, channel, user_id, cmd)
     if res is None or "ts" not in res:
-        return jsonify(
-            {
-                "response_action": "errors",
-                "errors": {
-                    "channel_block": (
-                        "Couldn't post the poll to that channel - make sure "
-                        "Votey has been added to it."
-                    )
-                },
-            }
-        )
+        return {
+            "response_action": "errors",
+            "errors": {
+                "channel_block": (
+                    "Couldn't post the poll to that channel - make sure "
+                    "Votey has been added to it."
+                )
+            },
+        }
 
     return ""
 
 
-def handle_modal_block_action(payload: AnyJSON) -> Any:
+def handle_modal_block_action(payload: AnyJSON) -> SlackResult:
     workspace = Workspace.query.filter_by(
         team_id=payload.get("team", {}).get("id")
     ).first()
@@ -408,13 +416,15 @@ def handle_modal_block_action(payload: AnyJSON) -> Any:
     return ""
 
 
-def handle_button_interaction(req: JSON) -> Any:
-    res = json.loads(req.get("payload", ""))
-    button = res.get("actions")[0]["name"]
-    return handle_poll_deletion(res) if button == "delete" else handle_vote(res)
+def handle_button_interaction(payload: AnyJSON) -> SlackResult:
+    actions = payload.get("actions") or []
+    if not actions:
+        return ""
+    button = actions[0].get("name") or actions[0].get("action_id")
+    return handle_poll_deletion(payload) if button == "delete" else handle_vote(payload)
 
 
-def handle_vote(response: AnyJSON) -> Any:
+def handle_vote(response: AnyJSON) -> SlackResult:
     current_app.logger.debug("handling vote with req %s", response)
     identifier = _parse_callback_id(response.get("callback_id"))
     if identifier is None:
@@ -443,7 +453,7 @@ def handle_vote(response: AnyJSON) -> Any:
                 f"{pluralize(poll.vote_limit, 'option')}, please remove an "
                 f"existing vote before casting a new vote.",
             )
-            return jsonify({"attachments": generate_poll_markup(poll_id=poll.id)})
+            return {"attachments": generate_poll_markup(poll_id=poll.id)}
 
         db.session.add(Vote(poll_id=poll.id, option_id=option.id, user=user))
     db.session.commit()
@@ -451,7 +461,7 @@ def handle_vote(response: AnyJSON) -> Any:
     # Slack API kind of sucks
     # Return a dictionary with the attachments key to update a message
     # Is this even documented anywhere anymore?
-    return jsonify({"attachments": generate_poll_markup(poll_id=poll.id)})
+    return {"attachments": generate_poll_markup(poll_id=poll.id)}
 
 
 def handle_poll_deletion(response: AnyJSON) -> str:

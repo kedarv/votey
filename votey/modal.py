@@ -90,7 +90,7 @@ def read_view_values(view: AnyJSON) -> AnyJSON:
     if not channel_id:
         try:
             meta = json.loads(view.get("private_metadata") or "{}")
-        except (json.JSONDecodeError, TypeError):
+        except json.JSONDecodeError, TypeError:
             meta = {}
         channel_id = meta.get("channel_id") if isinstance(meta, dict) else None
 

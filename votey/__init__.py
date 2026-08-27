@@ -30,10 +30,17 @@ def create_app(config: dict[str, Any] | None = None) -> Flask:
         CLIENT_ID=os.getenv("CLIENT_ID"),
         CLIENT_SECRET=os.getenv("CLIENT_SECRET"),
         SIGNING_SECRET=os.getenv("SIGNING_SECRET"),
+        SLACK_MODE=os.getenv("SLACK_MODE", "http").lower(),
+        SLACK_APP_TOKEN=os.getenv("SLACK_APP_TOKEN"),
+        SLACK_BOT_TOKEN=os.getenv("SLACK_BOT_TOKEN"),
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
     )
     if config:
         app.config.update(config)
+
+    app.config["SLACK_MODE"] = str(app.config["SLACK_MODE"]).lower()
+    if app.config["SLACK_MODE"] not in {"http", "socket"}:
+        raise ValueError("SLACK_MODE must be either 'http' or 'socket'")
 
     register_extensions(app)
 

@@ -93,8 +93,24 @@ def test_slack_route_legacy_interactive_message_payload_still_routes_to_buttons(
 
     assert res.status_code == 200
     button.assert_called_once()
+    assert button.call_args.args[0] == payload
     view_sub.assert_not_called()
     modal.assert_not_called()
+
+
+def test_slack_route_serializes_shared_dict_response(client):
+    body = {"response_action": "errors", "errors": {"question": "Required"}}
+    with (
+        patch("votey.slack.valid_request", return_value=True),
+        patch("votey.slack.handle_view_submission", return_value=body),
+    ):
+        res = client.post(
+            "/slack",
+            data={"payload": json.dumps({"type": "view_submission", "view": {}})},
+        )
+
+    assert res.status_code == 200
+    assert res.get_json() == body
 
 
 def test_slack_route_short_circuits_on_invalid_request(client):
