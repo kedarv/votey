@@ -72,7 +72,7 @@ def _payload(state_values, *, channel="C-target", user="U1", team="T1"):
 
 
 def _body(response):
-    return json.loads(response.get_data(as_text=True))
+    return response
 
 
 def test_view_submission_rejects_when_no_options_provided(workspace):

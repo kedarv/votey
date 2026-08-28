@@ -22,6 +22,8 @@ def app(tmp_path):
         finally:
             db.session.remove()
             db.drop_all()
+            db.session.remove()
+            db.engine.dispose()
 
 
 @pytest.fixture

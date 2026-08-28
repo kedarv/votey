@@ -21,4 +21,4 @@ COPY . .
 EXPOSE 8000
 ENV PORT=8000
 
-CMD ["uv", "run", "gunicorn", "run:app"]
+CMD ["sh", "-c", "if [ \"${SLACK_MODE:-http}\" = \"socket\" ]; then exec uv run python run.py; else exec uv run gunicorn run:app; fi"]
